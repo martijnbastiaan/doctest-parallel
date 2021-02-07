@@ -1,2 +1,0 @@
-:set -DTEST -isrc -itest -idist/build/autogen -packageghc -optP-include -optPdist/build/autogen/cabal_macros.h
-:set -ighci-wrapper/src
