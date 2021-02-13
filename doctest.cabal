@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a7c307d4c3548326994e6fb1f8f2e96fd825cb9ba3cf2ed3cc6ea352a2554436
+-- hash: df9ea4990eb24fa41139911321743cf53282a50b28ecbfe24414e6fbd73c35eb
 
 name:           doctest
 version:        0.18.1
@@ -141,14 +141,14 @@ library
       Language.Haskell.GhciWrapper
       Paths_doctest
   build-depends:
-      base >=4.5 && <5
+      base >=4.8 && <5
     , base-compat >=0.7.0
     , code-page >=0.1
     , deepseq
     , directory
     , exceptions
     , filepath
-    , ghc >=7.0 && <9.1
+    , ghc >=7.10 && <9.1
     , ghc-paths >=0.1.0.9
     , process
     , syb >=0.3
@@ -163,7 +163,7 @@ executable doctest
   hs-source-dirs:
       driver
   build-depends:
-      base >=4.5 && <5
+      base >=4.8 && <5
     , base-compat >=0.7.0
     , code-page >=0.1
     , deepseq
@@ -171,7 +171,7 @@ executable doctest
     , doctest
     , exceptions
     , filepath
-    , ghc >=7.0 && <9.1
+    , ghc >=7.10 && <9.1
     , ghc-paths >=0.1.0.9
     , process
     , syb >=0.3
@@ -185,7 +185,7 @@ test-suite doctests
   hs-source-dirs:
       test
   build-depends:
-      base >=4.5 && <5
+      base >=4.8 && <5
     , base-compat >=0.7.0
     , code-page >=0.1
     , deepseq
@@ -193,7 +193,7 @@ test-suite doctests
     , doctest
     , exceptions
     , filepath
-    , ghc >=7.0 && <9.1
+    , ghc >=7.10 && <9.1
     , ghc-paths >=0.1.0.9
     , process
     , syb >=0.3
@@ -243,14 +243,14 @@ test-suite spec
   build-depends:
       HUnit
     , QuickCheck >=2.13.1
-    , base >=4.5 && <5
+    , base >=4.8 && <5
     , base-compat >=0.7.0
     , code-page >=0.1
     , deepseq
     , directory
     , exceptions
     , filepath
-    , ghc >=7.0 && <9.1
+    , ghc >=7.10 && <9.1
     , ghc-paths >=0.1.0.9
     , hspec >=2.3.0
     , hspec-core >=2.3.0
