@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: df9ea4990eb24fa41139911321743cf53282a50b28ecbfe24414e6fbd73c35eb
+-- hash: fbae7f7f74343db1c98014bb3fb51757d44e765aff90f60c2598ac2e3bddfd05
 
 name:           doctest
 version:        0.18.1
@@ -83,6 +83,8 @@ extra-source-files:
     test/integration/it/Foo.hs
     test/integration/it/Setup.hs
     test/integration/local-stderr-binding/A.hs
+    test/integration/module-isolation/TestA.hs
+    test/integration/module-isolation/TestB.hs
     test/integration/multiline/Multiline.hs
     test/integration/parse-error/Foo.hs
     test/integration/property-bool-with-type-signature/Foo.hs
@@ -153,6 +155,7 @@ library
     , process
     , syb >=0.3
     , transformers
+    , unordered-containers
   default-language: Haskell2010
 
 executable doctest
@@ -176,6 +179,7 @@ executable doctest
     , process
     , syb >=0.3
     , transformers
+    , unordered-containers
   default-language: Haskell2010
 
 test-suite doctests
@@ -198,6 +202,7 @@ test-suite doctests
     , process
     , syb >=0.3
     , transformers
+    , unordered-containers
   default-language: Haskell2010
 
 test-suite spec
@@ -261,4 +266,5 @@ test-suite spec
     , stringbuilder >=0.4
     , syb >=0.3
     , transformers
+    , unordered-containers
   default-language: Haskell2010

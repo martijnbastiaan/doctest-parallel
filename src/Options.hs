@@ -4,13 +4,15 @@
 module Options (
   Result(..)
 , Config(..)
+, LoadFromPackage(..)
 , defaultConfig
 , parseOptions
-#ifdef TEST
+
+-- * Internals
 , usage
 , info
 , versionInfo
-#endif
+, parseFlag
 ) where
 
 import           Prelude ()
@@ -36,19 +38,20 @@ import           Interpreter (ghc)
 usage :: String
 usage = unlines [
     "Usage:"
-  , "  doctest [ --fast | --preserve-it | --no-magic | --verbose | --no-isolate-modules | GHC OPTION | MODULE ]..."
+  , "  doctest [ --fast | --preserve-it | --no-magic | --verbose | --no-isolate-modules | --[no-]load-from-package | GHC OPTION | MODULE ]..."
   , "  doctest --help"
   , "  doctest --version"
   , "  doctest --info"
   , ""
   , "Options:"
-  , "  --fast               disable :reload between example groups"
-  , "  --preserve-it        preserve the `it` variable between examples"
-  , "  --verbose            print each test as it is run"
-  , "  --no-isolate-modules disable module isolation; run all tests in single GHCi session"
-  , "  --help               display this help and exit"
-  , "  --version            output version information and exit"
-  , "  --info               output machine-readable version information and exit"
+  , "  --fast                   disable :reload between example groups"
+  , "  --preserve-it            preserve the `it` variable between examples"
+  , "  --verbose                print each test as it is run"
+  , "  --no-isolate-modules     disable module isolation; run all tests in single GHCi session"
+  , "  --[no-]load-from-package [do not] load module under test from package database (default: auto detection)"
+  , "  --help                   display this help and exit"
+  , "  --version                output version information and exit"
+  , "  --info                   output machine-readable version information and exit"
   ]
 
 version :: String
@@ -89,7 +92,20 @@ data Config = Config
   -- ^ Verbose output (default: @False@)
   , cfgIsolateModules :: Bool
   -- ^ Run each module in a separate GHCi session (default: @True@)
+  , cfgLoadFromPackage :: LoadFromPackage
   } deriving (Show, Eq)
+
+-- | Doctest starts a GHCi process to test
+data LoadFromPackage
+  = AlwaysLoadFromPackage
+  -- ^ Always try to load modules from a (precompiled) package.
+  | NeverLoadFromPackage
+  -- ^ Never try to load modules from a package. Always use interpreted source
+  -- instead.
+  | AutoLoadFromPackage
+  -- ^ Try to load first module under test from package. If it succeeds, use
+  -- 'AlwaysLoadFromPackage' for all other modules.
+  deriving (Show, Eq)
 
 defaultConfig :: Config
 defaultConfig = Config
@@ -99,6 +115,7 @@ defaultConfig = Config
   , cfgPreserveIt = False
   , cfgVerbose = False
   , cfgIsolateModules = True
+  , cfgLoadFromPackage = AutoLoadFromPackage
   }
 
 parseOptions :: [String] -> Result Config
@@ -117,6 +134,8 @@ parseOptions args
         stripPreserveIt
         stripVerbose
         stripNoIsolateModules
+        stripLoadFromPackage
+        stripNoLoadFromPackage
 
         -- must be executed last
         stripOptGhc
@@ -124,6 +143,14 @@ parseOptions args
 stripNoIsolateModules :: RWS () [Warning] (Config, [String]) ()
 stripNoIsolateModules =
   stripFlag (\cfg -> cfg{cfgIsolateModules=False}) "--no-isolate-modules"
+
+stripLoadFromPackage :: RWS () [Warning] (Config, [String]) ()
+stripLoadFromPackage =
+  stripFlag (\cfg -> cfg{cfgLoadFromPackage=AlwaysLoadFromPackage}) "--load-from-package"
+
+stripNoLoadFromPackage :: RWS () [Warning] (Config, [String]) ()
+stripNoLoadFromPackage =
+  stripFlag (\cfg -> cfg{cfgLoadFromPackage=NeverLoadFromPackage}) "--no-load-from-package"
 
 stripNoMagic :: RWS () [Warning] (Config, [String]) ()
 stripNoMagic = stripFlag (\cfg -> cfg{cfgMagicMode=False}) "--no-magic"

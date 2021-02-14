@@ -70,6 +70,8 @@ runModules
   -- ^ Preserve it
   -> Bool
   -- ^ Verbose
+  -> Bool
+  -- ^ Load from package
   -> Either [String] Interpreter
   -- ^ If /Left/: each module is tested in its own GHCi session to prevent
   -- dependencies between modules. The strings are the arguments passed to the
@@ -79,11 +81,11 @@ runModules
   -> [Module [Located DocTest]]
   -- ^ Modules under test
   -> IO Summary
-runModules fastMode preserveIt verbose replE modules = do
+runModules fastMode preserveIt verbose loadFromPackage replE modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
-  (input, output) <- makeThreadPool 1 (runModule fastMode preserveIt replE)
+  (input, output) <- makeThreadPool 1 (runModule fastMode preserveIt loadFromPackage replE)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
@@ -158,16 +160,17 @@ overwrite msg = do
 runModule
   :: Bool
   -> Bool
+  -> Bool
   -> Either [String] Interpreter
   -> Chan ReportUpdate
   -> Module [Located DocTest]
   -> IO ()
-runModule fastMode preserveIt (Left ghciArgs) output mod_ = do
+runModule fastMode preserveIt loadFromPackage (Left ghciArgs) output mod_ = do
   Interpreter.withInterpreter ghciArgs $ \repl ->
     withCP65001 $
-      runModule fastMode preserveIt (Right repl) output mod_
+      runModule fastMode preserveIt loadFromPackage (Right repl) output mod_
 
-runModule fastMode preserveIt (Right repl) output (Module module_ setup examples) = do
+runModule fastMode preserveIt loadFromPackage (Right repl) output (Module module_ setup examples) = do
 
   successes <- mapM (runTestGroup preserveIt repl reload output) setup
 
@@ -187,7 +190,10 @@ runModule fastMode preserveIt (Right repl) output (Module module_ setup examples
         -- https://ghc.haskell.org/trac/ghc/ticket/5904, which results in a
         -- panic on GHC 7.4.1 if you do the :reload second.
         void $ Interpreter.safeEval repl ":reload"
-      void $ Interpreter.safeEval repl $ ":m *" ++ module_
+
+      if loadFromPackage
+      then void $ Interpreter.safeEval repl $ "import " ++ module_
+      else void $ Interpreter.safeEval repl $ ":m *" ++ module_
 
       when preserveIt $
         -- Evaluate a dumb expression to populate the 'it' variable NOTE: This is

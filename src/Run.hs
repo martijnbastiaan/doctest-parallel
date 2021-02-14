@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE CPP #-}
@@ -14,6 +15,7 @@ import           Prelude ()
 import           Prelude.Compat
 
 import           Control.Monad (when, unless)
+import qualified Data.HashSet as HashSet
 import           System.Directory (doesFileExist, doesDirectoryExist, getDirectoryContents)
 import           System.Environment (getEnvironment)
 import           System.Exit (exitFailure, exitSuccess)
@@ -122,9 +124,20 @@ getAddDistArgs = do
 isSuccess :: Summary -> Bool
 isSuccess s = sErrors s == 0 && sFailures s == 0
 
+-- | Remove module arguments from list of GHCi arguments
+stripModules :: [Module a] -> [String] -> [String]
+stripModules mods = filter (not . (`HashSet.member` modNames))
+  where
+    modNames = HashSet.fromList (map moduleName mods)
+
+-- | Does string start with @-i@?
+isImportArg :: String -> Bool
+isImportArg ('-':'i':_) = True
+isImportArg _ = False
+
 doctestWithOptions :: Config -> IO Summary
 doctestWithOptions Config{..} = do
-  args <-
+  args0 <-
     if cfgMagicMode then do
       -- expand directories to absolute paths and read package environment from
       -- environment variables if magic mode is set.
@@ -136,14 +149,32 @@ doctestWithOptions Config{..} = do
       return cfgOptions
 
   -- get examples from Haddock comments
-  modules <- getDocTests args
+  modules <- getDocTests args0
 
-  let run replE = runModules cfgFastMode cfgPreserveIt cfgVerbose replE modules
+  -- Determine whether or not to load modules from precompiled packages or
+  -- from interpreted source.
+  let modStrippedArgs = stripModules modules args0
+  (loadFromPackage, args1) <-
+    case (cfgLoadFromPackage, modules) of
+      (AlwaysLoadFromPackage, _) -> pure (True, modStrippedArgs)
+      (NeverLoadFromPackage, _) -> pure (False, args0)
+      (AutoLoadFromPackage, []) -> pure (False, args0)
+      (AutoLoadFromPackage, (Module{moduleName}:_)) ->
+        Interpreter.withInterpreter args0 $ \repl -> withCP65001 $ do
+          Interpreter.safeEval repl ("import " <> moduleName) >>= \case
+            Left _ -> pure (False, args0)
+            Right _ -> pure (True, modStrippedArgs)
+
+  -- If we're loading modules from packages, don't confuse GHCi with the presence
+  -- of source files.
+  let args2 = if loadFromPackage then filter (not . isImportArg) args1 else args1
+
+  let run replE = runModules cfgFastMode cfgPreserveIt cfgVerbose loadFromPackage replE modules
 
   if cfgIsolateModules then
     -- Run each module with its own interpreter
-    run (Left args)
+    run (Left args2)
   else
     -- Run each module with same interpreter, potentially creating a dependency
     -- between them.
-    Interpreter.withInterpreter args $ \repl -> withCP65001 $ run (Right repl)
+    Interpreter.withInterpreter args2 $ \repl -> withCP65001 $ run (Right repl)

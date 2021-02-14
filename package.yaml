@@ -40,16 +40,17 @@ ghc-options: -Wall
 dependencies:
 - base >= 4.8 && < 5
 - base-compat >= 0.7.0
-- ghc >= 7.10 && < 9.1
-- syb >= 0.3
 - code-page >= 0.1
 - deepseq
 - directory
 - exceptions
 - filepath
-- process
+- ghc >= 7.10 && < 9.1
 - ghc-paths >= 0.1.0.9
+- process
+- syb >= 0.3
 - transformers
+- unordered-containers
 
 library:
   source-dirs:

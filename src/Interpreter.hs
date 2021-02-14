@@ -25,6 +25,9 @@ import           GHC.Paths (ghc)
 
 import           Language.Haskell.GhciWrapper
 
+-- $setup
+-- >>> import Language.Haskell.GhciWrapper (eval)
+
 haveInterpreterKey :: String
 haveInterpreterKey = "Have interpreter"
 
