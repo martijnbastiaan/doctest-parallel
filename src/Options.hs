@@ -1,13 +1,10 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 module Options (
   Result(..)
-, Run(..)
-, defaultMagic
-, defaultFastMode
-, defaultPreserveIt
-, defaultVerbose
-, defaultIsolateModules
+, Config(..)
+, defaultConfig
 , parseOptions
 #ifdef TEST
 , usage
@@ -24,7 +21,6 @@ import qualified Control.Monad.Trans.RWS as RWS
 
 import           Control.Monad (when)
 import           Data.List.Compat
-import           Data.Monoid (Endo (Endo))
 
 import qualified Paths_doctest
 import           Data.Version (showVersion)
@@ -75,117 +71,112 @@ info = "[ " ++ (intercalate "\n, " . map show $ [
   , ("ghc", ghc)
   ]) ++ "\n]\n"
 
-data Result a = Output String | Result a
+data Result a = Output String | Result ([Warning], a)
   deriving (Eq, Show, Functor)
 
 type Warning = String
 
-data Run = Run {
-  runWarnings :: [Warning]
-, runOptions :: [String]
-, runMagicMode :: Bool
-, runFastMode :: Bool
-, runPreserveIt :: Bool
-, runVerbose :: Bool
-, runIsolateModules :: Bool
-} deriving (Eq, Show)
+data Config = Config
+  { cfgOptions :: [String]
+  -- ^ Options passed to GHCi session (default: @[]@)
+  , cfgMagicMode :: Bool
+  -- ^ Try to automatically find package databases (default: @True@)
+  , cfgFastMode :: Bool
+  -- ^ Don't run @:reload@ between tests (default: @False@)
+  , cfgPreserveIt :: Bool
+  -- ^ Preserve the @it@ variable between examples (default: @False@)
+  , cfgVerbose :: Bool
+  -- ^ Verbose output (default: @False@)
+  , cfgIsolateModules :: Bool
+  -- ^ Run each module in a separate GHCi session (default: @True@)
+  } deriving (Show, Eq)
 
-defaultMagic :: Bool
-defaultMagic = True
+defaultConfig :: Config
+defaultConfig = Config
+  { cfgOptions = []
+  , cfgMagicMode = True
+  , cfgFastMode = False
+  , cfgPreserveIt = False
+  , cfgVerbose = False
+  , cfgIsolateModules = True
+  }
 
-defaultFastMode :: Bool
-defaultFastMode = False
-
-defaultPreserveIt :: Bool
-defaultPreserveIt = False
-
-defaultVerbose :: Bool
-defaultVerbose = False
-
-defaultIsolateModules :: Bool
-defaultIsolateModules = True
-
-defaultRun :: Run
-defaultRun = Run {
-  runWarnings = []
-, runOptions = []
-, runMagicMode = defaultMagic
-, runFastMode = defaultFastMode
-, runPreserveIt = defaultPreserveIt
-, runVerbose = defaultVerbose
-, runIsolateModules = defaultIsolateModules
-}
-
-modifyWarnings :: ([String] -> [String]) -> Run -> Run
-modifyWarnings f run = run { runWarnings = f (runWarnings run) }
-
-setOptions :: [String] -> Run -> Run
-setOptions opts run = run { runOptions = opts }
-
-setMagicMode :: Bool -> Run -> Run
-setMagicMode magic run = run { runMagicMode = magic }
-
-setFastMode :: Bool -> Run -> Run
-setFastMode fast run = run { runFastMode = fast }
-
-setPreserveIt :: Bool -> Run -> Run
-setPreserveIt preserveIt run = run { runPreserveIt = preserveIt }
-
-setVerbose :: Bool -> Run -> Run
-setVerbose verbose run = run { runVerbose = verbose }
-
-setIsolateModules :: Bool -> Run -> Run
-setIsolateModules isolate run = run { runIsolateModules = isolate }
-
-parseOptions :: [String] -> Result Run
+parseOptions :: [String] -> Result Config
 parseOptions args
   | "--help" `elem` args = Output usage
   | "--info" `elem` args = Output info
   | "--version" `elem` args = Output versionInfo
-  | otherwise = case execRWS parse () args of
-      (xs, Endo setter) ->
-        Result (setOptions xs $ setter defaultRun)
+  | otherwise = case execRWS parse () (defaultConfig, args) of
+      ((config, ghciArgs), warnings) ->
+        Result (warnings, config{cfgOptions=ghciArgs})
     where
-      parse :: RWS () (Endo Run) [String] ()
+      parse :: RWS () [Warning] (Config, [String]) ()
       parse = do
         stripNoMagic
         stripFast
         stripPreserveIt
         stripVerbose
-        stripOptGhc
         stripNoIsolateModules
 
-stripNoIsolateModules :: RWS () (Endo Run) [String] ()
-stripNoIsolateModules = stripFlag (setIsolateModules False) "--no-isolate-modules"
+        -- must be executed last
+        stripOptGhc
 
-stripNoMagic :: RWS () (Endo Run) [String] ()
-stripNoMagic = stripFlag (setMagicMode False) "--no-magic"
+stripNoIsolateModules :: RWS () [Warning] (Config, [String]) ()
+stripNoIsolateModules =
+  stripFlag (\cfg -> cfg{cfgIsolateModules=False}) "--no-isolate-modules"
 
-stripFast :: RWS () (Endo Run) [String] ()
-stripFast = stripFlag (setFastMode True) "--fast"
+stripNoMagic :: RWS () [Warning] (Config, [String]) ()
+stripNoMagic = stripFlag (\cfg -> cfg{cfgMagicMode=False}) "--no-magic"
 
-stripPreserveIt :: RWS () (Endo Run) [String] ()
-stripPreserveIt = stripFlag (setPreserveIt True) "--preserve-it"
+stripFast :: RWS () [Warning] (Config, [String]) ()
+stripFast = stripFlag (\cfg -> cfg{cfgFastMode=True}) "--fast"
 
-stripVerbose :: RWS () (Endo Run) [String] ()
-stripVerbose = stripFlag (setVerbose True) "--verbose"
+stripPreserveIt :: RWS () [Warning] (Config, [String]) ()
+stripPreserveIt = stripFlag (\cfg -> cfg{cfgPreserveIt=True}) "--preserve-it"
 
-stripFlag :: (Run -> Run) -> String -> RWS () (Endo Run) [String] ()
+stripVerbose :: RWS () [Warning] (Config, [String]) ()
+stripVerbose = stripFlag (\cfg -> cfg{cfgVerbose=True}) "--verbose"
+
+stripFlag :: (Config -> Config) -> String -> RWS () [Warning] (Config, [String]) ()
 stripFlag setter flag = do
-  args <- RWS.get
+  (cfg, args) <- RWS.get
   when (flag `elem` args) $
-    RWS.tell (Endo setter)
-  RWS.put (filter (/= flag) args)
+    RWS.put (setter cfg, filter (/= flag) args)
 
-stripOptGhc :: RWS () (Endo Run) [String] ()
+-- | Parse a flag into its flag and argument component.
+--
+-- Example:
+--
+-- >>> parseFlag "--optghc=foo"
+-- ("--optghc",Just "foo")
+-- >>> parseFlag "--optghc="
+-- ("--optghc",Nothing)
+-- >>> parseFlag "--fast"
+-- ("--fast",Nothing)
+parseFlag :: String -> (String, Maybe String)
+parseFlag arg =
+  case break (== '=') arg of
+    (flag, ['=']) -> (flag, Nothing)
+    (flag, ('=':opt)) -> (flag, Just opt)
+    (flag, _) -> (flag, Nothing)
+
+
+stripOptGhc :: RWS () [Warning] (Config, [String]) ()
 stripOptGhc = do
-  issueWarning <- RWS.state go
-  when issueWarning $
-    RWS.tell $ Endo $ modifyWarnings (++ [warning])
+  (cfg, args0) <- RWS.get
+  case go args0 of
+    (False, _) -> pure ()
+    (True, args1) -> do
+      RWS.tell [warning]
+      RWS.put (cfg, args1)
   where
-    go args = case args of
-      [] -> (False, [])
-      "--optghc" : opt : rest -> (True, opt : snd (go rest))
-      opt : rest -> maybe (fmap (opt :)) (\x (_, xs) -> (True, x : xs)) (stripPrefix "--optghc=" opt) (go rest)
-
     warning = "WARNING: --optghc is deprecated, doctest now accepts arbitrary GHC options\ndirectly."
+
+    bimap f g (a, b) = (f a, g b)
+
+    go :: [String] -> (Bool, [String])
+    go [] = (False, [])
+    go ("--optghc":opt:rest) = bimap (True ||) (opt:) (go rest)
+    go (arg:rest)
+      | ("--optghc", Just val) <- parseFlag arg = bimap (True ||) (val:) (go rest)
+      | otherwise = bimap (False ||) (arg:) (go rest)

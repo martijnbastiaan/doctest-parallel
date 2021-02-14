@@ -8,17 +8,6 @@ import           Test.QuickCheck
 
 import           Options
 
-defaultRun :: Run
-defaultRun = Run
-  { runWarnings = []
-  , runOptions = []
-  , runMagicMode = defaultMagic
-  , runFastMode = defaultFastMode
-  , runPreserveIt = defaultPreserveIt
-  , runVerbose = defaultVerbose
-  , runIsolateModules = defaultIsolateModules
-  }
-
 spec :: Spec
 spec = do
   describe "parseOptions" $ do
@@ -27,49 +16,49 @@ spec = do
       property $ \xs ys ->
         parseOptions (xs ++ ["--optghc", "foobar"] ++ ys)
         `shouldBe`
-        Result (defaultRun{runWarnings=warning, runOptions=xs ++ ["foobar"] ++ ys})
+        Result (warning, defaultConfig{cfgOptions=xs ++ ["foobar"] ++ ys})
 
     it "strips --optghc=" $
       property $ \xs ys ->
         parseOptions (xs ++ ["--optghc=foobar"] ++ ys)
         `shouldBe`
-        Result (defaultRun{runWarnings=warning, runOptions=xs ++ ["foobar"] ++ ys})
+        Result (warning, defaultConfig{cfgOptions=xs ++ ["foobar"] ++ ys})
 
     describe "--no-isolate-modules" $ do
       context "without --no-isolate-modules" $ do
         it "enables module isolation" $ do
-          runIsolateModules <$> parseOptions [] `shouldBe` Result True
+          cfgIsolateModules <$> parseOptions [] `shouldBe` Result ([], True)
 
       context "with --no-isolate-modules" $ do
         it "disables module isolation" $ do
-          runIsolateModules <$> parseOptions ["--no-isolate-modules"] `shouldBe` Result False
+          cfgIsolateModules <$> parseOptions ["--no-isolate-modules"] `shouldBe` Result ([], False)
 
     describe "--no-magic" $ do
       context "without --no-magic" $ do
         it "enables magic mode" $ do
-          runMagicMode <$> parseOptions [] `shouldBe` Result True
+          cfgMagicMode <$> parseOptions [] `shouldBe` Result ([], True)
 
       context "with --no-magic" $ do
         it "disables magic mode" $ do
-          runMagicMode <$> parseOptions ["--no-magic"] `shouldBe` Result False
+          cfgMagicMode <$> parseOptions ["--no-magic"] `shouldBe` Result ([], False)
 
     describe "--fast" $ do
       context "without --fast" $ do
         it "disables fast mode" $ do
-          runFastMode <$> parseOptions [] `shouldBe` Result False
+          cfgFastMode <$> parseOptions [] `shouldBe` Result ([], False)
 
       context "with --fast" $ do
         it "enabled fast mode" $ do
-          runFastMode <$> parseOptions ["--fast"] `shouldBe` Result True
+          cfgFastMode <$> parseOptions ["--fast"] `shouldBe` Result ([], True)
 
     describe "--preserve-it" $ do
       context "without --preserve-it" $ do
         it "does not preserve the `it` variable" $ do
-          runPreserveIt <$> parseOptions [] `shouldBe` Result False
+          cfgPreserveIt <$> parseOptions [] `shouldBe` Result ([], False)
 
       context "with --preserve-it" $ do
         it "preserves the `it` variable" $ do
-          runPreserveIt <$> parseOptions ["--preserve-it"] `shouldBe` Result True
+          cfgPreserveIt <$> parseOptions ["--preserve-it"] `shouldBe` Result ([], True)
 
     context "with --help" $ do
       it "outputs usage information" $ do
@@ -86,8 +75,8 @@ spec = do
     describe "--verbose" $ do
       context "without --verbose" $ do
         it "is not verbose by default" $ do
-          runVerbose <$> parseOptions [] `shouldBe` Result False
+          cfgVerbose <$> parseOptions [] `shouldBe` Result ([], False)
 
       context "with --verbose" $ do
         it "parses verbose option" $ do
-          runVerbose <$> parseOptions ["--verbose"] `shouldBe` Result True
+          cfgVerbose <$> parseOptions ["--verbose"] `shouldBe` Result ([], True)

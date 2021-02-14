@@ -1,9 +1,11 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE CPP #-}
 module Run (
   doctest
-#ifdef TEST
 , doctestWithOptions
-, Summary
+, Summary(..)
+#ifdef TEST
 , expandDirs
 #endif
 ) where
@@ -48,7 +50,7 @@ import qualified Interpreter
 doctest :: [String] -> IO ()
 doctest args0 = case parseOptions args0 of
   Output s -> putStr s
-  Result (Run warnings args_ magicMode fastMode preserveIt verbose isolate) -> do
+  Result (warnings, config) -> do
     mapM_ (hPutStrLn stderr) warnings
     hFlush stderr
 
@@ -57,15 +59,7 @@ doctest args0 = case parseOptions args0 of
       hPutStrLn stderr "WARNING: GHC does not support --interactive, skipping tests"
       exitSuccess
 
-    args <- case magicMode of
-      False -> return args_
-      True -> do
-        expandedArgs <- concat <$> mapM expandDirs args_
-        packageDBArgs <- getPackageDBArgs
-        addDistArgs <- getAddDistArgs
-        return (addDistArgs $ packageDBArgs ++ expandedArgs)
-
-    r <- doctestWithOptions fastMode preserveIt verbose isolate args `E.catch` \e -> do
+    r <- doctestWithOptions config `E.catch` \e -> do
       case fromException e of
         Just (UsageError err) -> do
           hPutStrLn stderr ("doctest: " ++ err)
@@ -128,26 +122,25 @@ getAddDistArgs = do
 isSuccess :: Summary -> Bool
 isSuccess s = sErrors s == 0 && sFailures s == 0
 
-doctestWithOptions
-  :: Bool
-  -- ^ Fast mode
-  -> Bool
-  -- ^ Preserve it
-  -> Bool
-  -- ^ Verbose
-  -> Bool
-  -- ^ Isolate modules
-  -> [String]
-  -- ^ Arguments passed to GHCi
-  -> IO Summary
-doctestWithOptions fastMode preserveIt verbose isolate args = do
+doctestWithOptions :: Config -> IO Summary
+doctestWithOptions Config{..} = do
+  args <-
+    if cfgMagicMode then do
+      -- expand directories to absolute paths and read package environment from
+      -- environment variables if magic mode is set.
+      expandedArgs <- concat <$> mapM expandDirs cfgOptions
+      packageDBArgs <- getPackageDBArgs
+      addDistArgs <- getAddDistArgs
+      return (addDistArgs $ packageDBArgs ++ expandedArgs)
+    else
+      return cfgOptions
 
   -- get examples from Haddock comments
   modules <- getDocTests args
 
-  let run replE = runModules fastMode preserveIt verbose replE modules
+  let run replE = runModules cfgFastMode cfgPreserveIt cfgVerbose replE modules
 
-  if isolate then
+  if cfgIsolateModules then
     -- Run each module with its own interpreter
     run (Left args)
   else

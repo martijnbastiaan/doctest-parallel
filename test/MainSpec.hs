@@ -11,7 +11,6 @@ import           Control.Exception
 import           System.Directory (getCurrentDirectory, setCurrentDirectory)
 import           System.FilePath
 import           Options
-import           Runner (Summary(..))
 import           Run hiding (doctest)
 import           System.IO.Silently
 import           System.IO
@@ -24,40 +23,17 @@ withCurrentDirectory workingDir action = do
 
 -- | Construct a doctest specific 'Assertion'.
 doctest :: HasCallStack => FilePath -> [String] -> Summary -> Assertion
-doctest = doctestWithPreserveIt defaultPreserveIt
+doctest = doctestWithOpts defaultConfig
 
-doctestWithOpts :: HasCallStack => Bool -> Bool -> Bool -> Bool -> FilePath -> [String] -> Summary -> Assertion
-doctestWithOpts fastMode preserveIt verbose isolate workingDir args expected = do
+doctestWithOpts :: HasCallStack => Config -> FilePath -> [String] -> Summary -> Assertion
+doctestWithOpts config workingDir args expected = do
   actual <-
-    withCurrentDirectory ("test/integration" </> workingDir) (hSilence [stderr] $
-      doctestWithOptions fastMode preserveIt verbose isolate args)
+    withCurrentDirectory
+      ("test/integration" </> workingDir)
+      (hSilence [stderr] $ doctestWithOptions config{cfgOptions=args})
   assertEqual label expected actual
   where
     label = workingDir ++ " " ++ show args
-
-doctestWithPreserveIt :: HasCallStack => Bool -> FilePath -> [String] -> Summary -> Assertion
-doctestWithPreserveIt preserveIt workingDir args expected =
-  doctestWithOpts
-    defaultFastMode
-    preserveIt
-    defaultVerbose
-    defaultIsolateModules
-    workingDir
-    args
-    expected
-
-#if __GLASGOW_HASKELL__ > 710
-doctestWithModuleIsolation :: HasCallStack => Bool -> FilePath -> [String] -> Summary -> Assertion
-doctestWithModuleIsolation isolate workingDir args expected =
-  doctestWithOpts
-    defaultFastMode
-    defaultPreserveIt
-    defaultVerbose
-    isolate
-    workingDir
-    args
-    expected
-#endif
 
 cases :: Int -> Summary
 cases n = Summary n n 0 0
@@ -73,11 +49,11 @@ spec = do
         (cases 1)
 
     it "it-variable" $ do
-      doctestWithPreserveIt True "." ["it/Foo.hs"]
+      doctestWithOpts (defaultConfig{cfgPreserveIt=True}) "." ["it/Foo.hs"]
         (cases 5)
 
     it "it-variable in $setup" $ do
-      doctestWithPreserveIt True "." ["it/Setup.hs"]
+      doctestWithOpts (defaultConfig{cfgPreserveIt=True}) "." ["it/Setup.hs"]
         (cases 5)
 
     it "failing" $ do
@@ -181,10 +157,10 @@ spec = do
   -- introduced in GHC 8.0.
   describe "doctest (module isolation)" $ do
     it "should fail with module isolation" $ do
-      doctestWithModuleIsolation True "module-isolation" ["TestA.hs", "TestB.hs"]
+      doctestWithOpts defaultConfig{cfgIsolateModules=True} "module-isolation" ["TestA.hs", "TestB.hs"]
         (cases 3) {sFailures = 1}
     it "should work without module isolation" $ do
-      doctestWithModuleIsolation False "module-isolation" ["TestA.hs", "TestB.hs"]
+      doctestWithOpts defaultConfig{cfgIsolateModules=False} "module-isolation" ["TestA.hs", "TestB.hs"]
         (cases 3)
 #endif
 

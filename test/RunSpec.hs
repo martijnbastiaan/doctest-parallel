@@ -14,16 +14,12 @@ import           Data.List.Compat
 import           System.IO.Silently
 import           System.IO (stderr)
 import qualified Options
+import           Options(cfgOptions, defaultConfig)
 
 import           Run
 
 doctestWithDefaultOptions :: [String] -> IO Summary
-doctestWithDefaultOptions =
-  doctestWithOptions
-    Options.defaultFastMode
-    Options.defaultPreserveIt
-    Options.defaultVerbose
-    Options.defaultIsolateModules
+doctestWithDefaultOptions args = doctestWithOptions defaultConfig{cfgOptions=args}
 
 withCurrentDirectory :: FilePath -> IO a -> IO a
 withCurrentDirectory workingDir action = do
