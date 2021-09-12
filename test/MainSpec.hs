@@ -181,7 +181,7 @@ spec = do
 
     it "bugfixMultipleModules" $ do
       doctest "bugfixMultipleModules" ["ModuleA.hs"]
-        (cases 5)
+        (cases 5) {sFailures = 1}
 
     it "testCPP" $ do
       doctest "testCPP" ["-cpp", "Foo.hs"]
