@@ -1,8 +1,9 @@
+
 # Doctest: Test interactive Haskell examples
+> ⚠️ This is a fork of `sol/doctest` that allows running tests in parallel. It also fixes some critical bugs, which makes it backwards incompatible with upstream. Although I'd rather see this fork disappear, until the changes are upstreamed I intend to maintain it and keep it in sync with upstream. This means `master` might get periodically rebased. See section [Fork](#fork) for more information.
 
 `doctest` is a small program, that checks [examples in Haddock comments](http://www.haskell.org/haddock/doc/html/ch03s08.html#id566093).  It is similar
 to the [popular Python module with the same name](http://docs.python.org/library/doctest.html).
-
 
 ## Installation
 
@@ -429,3 +430,12 @@ changes.
  * Sakari Jokinen
  * Simon Hengel
  * Sönke Hahn
+
+## Fork
+As the name of the fork implies, the biggest feature it adds is multithreaded execution of doctests. [A long story](https://github.com/sol/doctest/pull/283) short, this required a number of changes:
+
+ * Every module with doctests is tested in a separate thread with its own interpreter (limited by the number of available threads, naturally).
+ * Interdependency between tests in different modules has been removed. For more information, see [this PR](https://github.com/sol/doctest/pull/291).
+ * To avoid recompilation _for every module_ doctest can now load tests from precompiled library files (packages dbs).
+
+Although I'd prefer these changes to float upstream, I intend to maintain this fork.
