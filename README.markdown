@@ -393,11 +393,6 @@ You can find real world examples of `Doctest` being used below:
   * [base Data/Maybe.hs](https://github.com/ghc/ghc/blob/669cbef03c220de43b0f88f2b2238bf3c02ed64c/libraries/base/Data/Maybe.hs#L36-L79)
   * [base Data/Functor.hs](https://github.com/ghc/ghc/blob/669cbef03c220de43b0f88f2b2238bf3c02ed64c/libraries/base/Data/Functor.hs#L34-L64)
 
-
-## Doctest extensions
-
-  * [doctest-discover](https://github.com/karun012/doctest-discover)
-
 ## Development [![Build Status](https://secure.travis-ci.org/sol/doctest.png)](http://travis-ci.org/sol/doctest)
 
 Join in at `#hspec` on freenode.
