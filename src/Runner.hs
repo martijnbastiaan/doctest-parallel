@@ -85,7 +85,7 @@ runModules fastMode preserveIt verbose loadFromPackage replE modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
-  (input, output) <- makeThreadPool 1 (runModule fastMode preserveIt loadFromPackage replE)
+  (input, output) <- makeThreadPool 24 (runModule fastMode preserveIt loadFromPackage replE)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
