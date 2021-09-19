@@ -114,7 +114,7 @@ addQuoteInclude includes new = new ++ includes
 #endif
 
 -- | Parse a list of modules.
-parse :: [String] -> IO [TypecheckedModule]
+parse :: [String] -> IO [ParsedModule]
 parse args = withGhc args $ \modules_ -> withTempOutputDir $ do
 
   -- ignore additional object files
@@ -126,7 +126,7 @@ parse args = withGhc args $ \modules_ -> withTempOutputDir $ do
   mods' <- if needsTemplateHaskellOrQQ mods then enableCompilation mods else return mods
 
   let sortedMods = flattenSCCs (topSortModuleGraph False mods' Nothing)
-  reverse <$> mapM (loadModPlugins >=> parseModule >=> typecheckModule >=> loadModule) sortedMods
+  reverse <$> mapM (loadModPlugins >=> parseModule) sortedMods
   where
     -- copied from Haddock/Interface.hs
     enableCompilation :: ModuleGraph -> Ghc ModuleGraph
@@ -206,7 +206,7 @@ extract args = do
   packageDBArgs <- getPackageDBArgs
   let args'  = args ++ packageDBArgs
   mods <- parse args'
-  let docs = map (fmap (fmap convertDosLineEndings) . extractFromModule . tm_parsed_module) mods
+  let docs = map (fmap (fmap convertDosLineEndings) . extractFromModule) mods
 
   (docs `deepseq` return docs) `catches` [
       -- Re-throw AsyncException, otherwise execution will not terminate on
