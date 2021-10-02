@@ -4,7 +4,6 @@
 module Options (
   Result(..)
 , Config(..)
-, LoadFromPackage(..)
 , defaultConfig
 , parseOptions
 
@@ -87,18 +86,6 @@ data Config = Config
   , cfgVerbose :: Bool
   -- ^ Verbose output (default: @False@)
   } deriving (Show, Eq)
-
--- | Doctest starts a GHCi process to test
-data LoadFromPackage
-  = AlwaysLoadFromPackage
-  -- ^ Always try to load modules from a (precompiled) package.
-  | NeverLoadFromPackage
-  -- ^ Never try to load modules from a package. Always use interpreted source
-  -- instead.
-  | AutoLoadFromPackage
-  -- ^ Try to load first module under test from package. If it succeeds, use
-  -- 'AlwaysLoadFromPackage' for all other modules.
-  deriving (Show, Eq)
 
 defaultConfig :: Config
 defaultConfig = Config
