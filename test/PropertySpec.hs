@@ -4,8 +4,8 @@ module PropertySpec (main, spec) where
 import           Test.Hspec
 import           Data.String.Builder
 
-import           Property
-import           Interpreter (withInterpreter)
+import           Test.DocTest.Internal.Property
+import           Test.DocTest.Internal.Interpreter (withInterpreter)
 
 main :: IO ()
 main = hspec spec

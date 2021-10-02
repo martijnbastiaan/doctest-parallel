@@ -5,7 +5,9 @@ import           Prelude.Compat
 
 import           Test.Hspec
 
-import           Interpreter (interpreterSupported, haveInterpreterKey, ghcInfo, withInterpreter, safeEval)
+import qualified Test.DocTest.Internal.Interpreter as Interpreter
+import           Test.DocTest.Internal.Interpreter
+  (haveInterpreterKey, ghcInfo, withInterpreter)
 
 main :: IO ()
 main = hspec spec

@@ -23,9 +23,9 @@ import Panic
 import GHC.Utils.Panic
 #endif
 
-import           Parse
-import           Options
-import           Runner
+import Test.DocTest.Internal.Parse
+import Test.DocTest.Internal.Options
+import Test.DocTest.Internal.Runner
 
 -- Cabal
 import Distribution.Simple
@@ -48,14 +48,18 @@ mainFromCabal libName cmdArgs = do
   mainFromLibrary lib cmdArgs
 
 mainFromLibrary :: Library -> [String] -> IO ()
-mainFromLibrary lib (parseOptions -> (mods, opts)) =
+mainFromLibrary lib (parseOptions -> opts) =
   case opts of
-    Output s -> putStr s
+    ResultStdout s -> putStr s
+    ResultStderr s -> do
+       hPutStrLn stderr ("doctest: " ++ s)
+       hPutStrLn stderr "Try `doctest --help' for more information."
+       exitFailure
     Result (warnings, config) -> do
       mapM_ (hPutStrLn stderr) warnings
       hFlush stderr
 
-      r <- main lib mods config `E.catch` \e -> do
+      r <- main lib config `E.catch` \e -> do
         case fromException e of
           Just (UsageError err) -> do
             hPutStrLn stderr ("doctest: " ++ err)
@@ -83,8 +87,8 @@ filterModules wantedMods0 allMods0
   isSpecifiedMod Module{moduleName} = moduleName `Set.member` wantedMods1
 
 
-main :: Library -> [ModuleName] -> Config -> IO Summary
-main lib mods Config{..} = do
+main :: Library -> Config -> IO Summary
+main lib Config{..} = do
   let
     implicitPrelude = DisableExtension ImplicitPrelude `notElem` libDefaultExtensions lib
     (includeArgs, moduleArgs, otherGhciArgs) = libraryToGhciArgs lib
@@ -92,5 +96,5 @@ main lib mods Config{..} = do
 
   -- get examples from Haddock comments
   allModules <- getDocTests (includeArgs ++ moduleArgs ++ otherGhciArgs)
-  let modules = filterModules mods allModules
+  let modules = filterModules cfgModules allModules
   runModules cfgPreserveIt cfgVerbose implicitPrelude evalGhciArgs modules

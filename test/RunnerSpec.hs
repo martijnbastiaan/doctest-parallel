@@ -6,7 +6,7 @@ import           Test.Hspec
 import           System.IO
 import           System.IO.Silently (hCapture)
 import           Control.Monad.Trans.State
-import           Runner
+import           Test.DocTest.Internal.Runner
 
 main :: IO ()
 main = hspec spec

@@ -2,7 +2,7 @@ module UtilSpec (main, spec) where
 
 import           Test.Hspec
 
-import           Util
+import           Test.DocTest.Internal.Util
 
 main :: IO ()
 main = hspec spec

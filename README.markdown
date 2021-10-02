@@ -294,6 +294,7 @@ This is a fork of [sol/doctest](https://github.com/sol/doctest) that allows runn
  * It isolates examples in modules, ensuring your tests don't accidentally rely on each other
  * It parses cabal files to discover modules, no need for custom setup anymore!
  * A minor change: it does not count lines in setup blocks as test cases
+ * A minor change: the testsuite has been ported to v2 commands
 
 All in all, you can expect `doctest-parallel` to run about 1 or 2 orders of magnitude faster than `doctest` for large projects.
 
@@ -311,7 +312,12 @@ And different in others:
  * `doctest-parallel` runs tests in parallel.
 
 # Development
-TODO
+To run the tests:
+
+```
+cabal run spectests
+cabal run doctests
+```
 
 # Contributors
 

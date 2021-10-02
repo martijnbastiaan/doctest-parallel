@@ -20,7 +20,7 @@ import Distribution.Simple
 import Distribution.PackageDescription
   ( CondTree(CondNode, condTreeData), GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription )
+  , packageDescription, condSubLibraries, unUnqualComponentName )
 import Distribution.Pretty (prettyShow)
 
 #if MIN_VERSION_Cabal(3,6,0)
@@ -108,23 +108,46 @@ compatPrettyShow :: FilePath -> FilePath
 compatPrettyShow = id
 #endif
 
+-- Given a filepath to a @package.cabal@, parse it, and yield a "Library". Yields
+-- the default Library if first argument is Nothing, otherwise it will look for
+-- a specific sublibrary. 
+extractSpecificCabalLibrary :: Maybe String -> FilePath -> IO Library
+extractSpecificCabalLibrary maybeLibName pkgPath = do
+  pkg <- readPackage pkgPath
+  case maybeLibName of
+    Nothing ->
+      case condLibrary pkg of
+        Nothing ->
+          let pkgDescription = package (packageDescription pkg) in
+          error ("Could not find main library in: " <> show pkgDescription)
+        Just lib ->
+          go lib
+
+    Just libName ->
+      go (findSubLib pkg libName (condSubLibraries pkg))
+
+ where
+  findSubLib pkg targetLibName [] =
+    let pkgDescription = package (packageDescription pkg) in
+    error ("Could not find library " <> targetLibName <> " in " <> show pkgDescription)
+  findSubLib pkg targetLibName ((libName, lib):libs)
+    | unUnqualComponentName libName == targetLibName = lib
+    | otherwise = findSubLib pkg targetLibName libs
+
+  go CondNode{condTreeData=lib} =
+    let
+      buildInfo = libBuildInfo lib
+      sourceDirs = hsSourceDirs buildInfo
+      root = takeDirectory pkgPath
+    in
+      pure Library
+        { libSourceDirectories = map ((root </>) . compatPrettyShow) sourceDirs
+        , libModules = exposedModules lib
+        , libDefaultExtensions = defaultExtensions buildInfo
+        }
+
+
 -- Given a filepath to a @package.cabal@, parse it, and yield a "Library". Returns
 -- and error if no library was specified in the cabal package file.
 extractCabalLibrary :: FilePath -> IO Library
-extractCabalLibrary pkgPath = do
-  pkg <- readPackage pkgPath
-  case condLibrary pkg of
-    Nothing ->
-      let pkgDescription = package (packageDescription pkg) in
-      error ("Could not find main library in: " <> show pkgDescription)
-    Just CondNode{condTreeData=lib} ->
-      let
-        buildInfo = libBuildInfo lib
-        sourceDirs = hsSourceDirs buildInfo
-        root = takeDirectory pkgPath
-      in
-        pure Library
-          { libSourceDirectories = map ((root </>) . compatPrettyShow) sourceDirs
-          , libModules = exposedModules lib
-          , libDefaultExtensions = defaultExtensions buildInfo
-          }
+extractCabalLibrary = extractSpecificCabalLibrary Nothing

@@ -43,18 +43,18 @@ library
   exposed-modules:
       Test.DocTest
       Test.DocTest.Helpers
-  other-modules:
-      Extract
-      GhcUtil
-      Interpreter
-      Location
-      Options
-      Parse
-      Property
-      Runner
-      Runner.Example
-      Util
+      Test.DocTest.Internal.Extract
+      Test.DocTest.Internal.GhcUtil
+      Test.DocTest.Internal.Interpreter
+      Test.DocTest.Internal.Location
+      Test.DocTest.Internal.Options
+      Test.DocTest.Internal.Parse
+      Test.DocTest.Internal.Property
+      Test.DocTest.Internal.Runner
+      Test.DocTest.Internal.Runner.Example
+      Test.DocTest.Internal.Util
       Language.Haskell.GhciWrapper
+  other-modules:
       Paths_doctest_parallel
   build-depends:
       Cabal
@@ -75,4 +75,104 @@ library
     , syb >=0.3
     , transformers
     , unordered-containers
+  default-language: Haskell2010
+
+test-suite doctests
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          doctests.hs
+  ghc-options:      -threaded
+  build-depends:    base, doctest-parallel
+  default-language: Haskell2010
+
+
+library spectests-modules
+  default-language: Haskell2010
+  build-depends: base, doctest-parallel, template-haskell
+  -- Too many warnings. TODO: fix.
+  -- ghc-options: -Wall
+  hs-source-dirs:
+      test/integration
+  c-sources:
+      test/integration/WithCbits/foo.c
+  exposed-modules:
+    BugfixImportHierarchical.ModuleA
+    BugfixImportHierarchical.ModuleB
+    BugfixMultipleModules.ModuleA
+    BugfixMultipleModules.ModuleB
+    BugfixOutputToStdErr.Fib
+    Color.Foo
+    DosLineEndings.Fib
+    Failing.Foo
+    FailingMultiple.Foo
+    It.Foo
+    It.Setup
+    LocalStderrBinding.A
+    ModuleIsolation.TestA
+    ModuleIsolation.TestB
+    Multiline.Multiline
+    PropertyBool.Foo
+    PropertyBoolWithTypeSignature.Foo
+    PropertyFailing.Foo
+    PropertyImplicitlyQuantified.Foo
+    PropertyQuantified.Foo
+    PropertySetup.Foo
+    Setup.Foo
+    SetupSkipOnFailure.Foo
+    SystemIoImported.A
+    TemplateHaskell.Foo
+    TestBlankline.Fib
+    TestCombinedExample.Fib
+    TestCommentLocation.Foo
+    TestDocumentationForArguments.Fib
+    TestFailOnMultiline.Fib
+    TestImport.ModuleA
+    TestImport.ModuleB
+    TestPutStr.Fib
+    TestSimple.Fib
+    TrailingWhitespace.Foo
+    WithCbits.Bar
+
+test-suite spectests
+  main-is: Spec.hs
+  other-modules:
+      ExtractSpec
+      InterpreterSpec
+      LocationSpec
+      MainSpec
+      OptionsSpec
+      ParseSpec
+      PropertySpec
+      Runner.ExampleSpec
+      RunnerSpec
+      RunSpec
+      UtilSpec
+  type: exitcode-stdio-1.0
+  ghc-options: -Wall -threaded
+  cpp-options: -DTEST
+  hs-source-dirs:
+      test
+  build-depends:
+      HUnit
+    , QuickCheck >=2.13.1
+    , base >=4.5 && <5
+    , base-compat >=0.7.0
+    , code-page >=0.1
+    , doctest-parallel
+    , deepseq
+    , directory
+    , exceptions
+    , filepath
+    , ghc >=7.0 && <9.1
+    , ghc-paths >=0.1.0.9
+    , hspec >=2.3.0
+    , hspec-core >=2.3.0
+    , mockery
+    , process
+    , setenv
+    , silently >=1.2.4
+    , stringbuilder >=0.4
+    , spectests-modules
+    , syb >=0.3
+    , transformers
   default-language: Haskell2010

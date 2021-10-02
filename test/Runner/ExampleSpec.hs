@@ -9,8 +9,8 @@ import           Test.Hspec
 import           Test.Hspec.Core.QuickCheck (modifyMaxSize)
 import           Test.QuickCheck
 
-import           Parse
-import           Runner.Example
+import           Test.DocTest.Internal.Parse
+import           Test.DocTest.Internal.Runner.Example
 
 main :: IO ()
 main = hspec spec

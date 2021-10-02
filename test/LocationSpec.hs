@@ -4,7 +4,7 @@ module LocationSpec (main, spec) where
 
 import           Test.Hspec
 
-import           Location
+import           Test.DocTest.Internal.Location
 
 #if __GLASGOW_HASKELL__ < 900
 import           SrcLoc

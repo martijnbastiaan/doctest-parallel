@@ -14,11 +14,10 @@ import           Panic (GhcException (..))
 import           GHC.Utils.Panic (GhcException (..))
 #endif
 
-import           Extract
-import           Location
+import           Test.DocTest.Internal.Extract
+import           Test.DocTest.Internal.Location
 import           System.FilePath
 
-import           Orphans ()
 
 shouldGive :: HasCallStack => (String, String) -> [Module String] -> Assertion
 (d, m) `shouldGive` expected = do

@@ -6,10 +6,8 @@ import           Data.String
 import           Data.String.Builder (Builder, build)
 import           Control.Monad.Trans.Writer
 
-import           Parse
-import           Location
-
-import           Orphans ()
+import           Test.DocTest.Internal.Parse
+import           Test.DocTest.Internal.Location
 
 main :: IO ()
 main = hspec spec
