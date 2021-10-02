@@ -17,8 +17,11 @@ import           System.IO
 
 import qualified Control.Exception as E
 
-
-import           Panic
+#if __GLASGOW_HASKELL__ < 900
+import Panic
+#else
+import GHC.Utils.Panic
+#endif
 
 import           Parse
 import           Options

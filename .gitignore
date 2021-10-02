@@ -1,5 +1,7 @@
-/dist/
-/dist-newstyle/
+dist
+dist-newstyle
 /.stack-work/
 /ghci-wrapper/.stack-work/
-/.ghc.environment.*
+.ghc.environment.*
+.stack-work
+stack.yaml.lock

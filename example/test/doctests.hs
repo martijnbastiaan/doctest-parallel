@@ -1,6 +1,7 @@
 module Main where
 
-import           Test.DocTest
+import Test.DocTest (mainFromCabal)
+import System.Environment (getArgs)
 
 main :: IO ()
-main = doctest ["-isrc", "src/Example.hs"]
+main = mainFromCabal "example" =<< getArgs

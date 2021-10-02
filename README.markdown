@@ -1,39 +1,13 @@
 
-# Doctest: Test interactive Haskell examples
-> ⚠️ This is a fork of `sol/doctest` that allows running tests in parallel. It also fixes some critical bugs, which makes it backwards incompatible with upstream. Although I'd rather see this fork disappear, until the changes are upstreamed I intend to maintain it and keep it in sync with upstream. This means `master` might get periodically rebased. See section [Fork](#fork) for more information.
+# Doctest parallel: Test interactive Haskell examples
 
-`doctest` is a small program, that checks [examples in Haddock comments](http://www.haskell.org/haddock/doc/html/ch03s08.html#id566093).  It is similar
-to the [popular Python module with the same name](http://docs.python.org/library/doctest.html).
+`doctest-parallel` is a library that checks [examples in Haddock comments](http://www.haskell.org/haddock/doc/html/ch03s08.html#id566093).  It is similar to the [popular Python module with the same name](http://docs.python.org/library/doctest.html).
 
-## Installation
+# Installation
+`doctest-parallel` is available from [Hackage](https://hackage.haskell.org/package/doctest-parallel). It cannot be used as a standalone binary, rather, it expects to be integrated in a Cabal/Stack project. See [examples/](example/README.md) for more information on how to integrate `doctest-parallel` into your project.
 
-`doctest` is available from
-[Hackage](http://hackage.haskell.org/cgi-bin/hackage-scripts/package/doctest).
-Install it, by typing:
-
-    cabal install doctest
-
-Make sure that Cabal's `bindir` is on your `PATH`.
-
-On Linux:
-
-    export PATH="$HOME/.cabal/bin:$PATH"
-
-On Mac OS X:
-
-    export PATH="$HOME/Library/Haskell/bin:$PATH"
-
-On Windows:
-
-    set PATH="%AppData%\cabal\bin\;%PATH%"
-
-For more information, see the [section on paths in the Cabal User Guide](http://www.haskell.org/cabal/users-guide/installing-packages.html#paths-in-the-simple-build-system).
-
-## Usage
-
-Below is a small Haskell module.
-The module contains a Haddock comment with some examples of interaction.
-The examples demonstrate how the module is supposed to be used.
+# Usage
+Below is a small Haskell module. The module contains a Haddock comment with some examples of interaction. The examples demonstrate how the module is supposed to be used.
 
 ```haskell
 module Fib where
@@ -53,27 +27,11 @@ fib 1 = 1
 fib n = fib (n - 1) + fib (n - 2)
 ```
 
-(A comment line starting with `>>>` denotes an _expression_.
-All comment lines following an expression denote the _result_ of that expression.
-Result is defined by what a
-[REPL](http://en.wikipedia.org/wiki/Read-eval-print_loop) (e.g. ghci)
-prints to `stdout` and `stderr` when evaluating that expression.)
+A comment line starting with `>>>` denotes an _expression_. All comment lines following an expression denote the _result_ of that expression. Result is defined by what a [REPL](http://en.wikipedia.org/wiki/Read-eval-print_loop) (e.g. ghci) prints to `stdout` and `stderr` when evaluating that expression.
 
-With `doctest` you may check whether the implementation satisfies the given examples, by typing:
+`doctest-parallel` will fail on comments that `haddock` also doesn't like. Sometimes (e.g., [#251](https://github.com/sol/doctest/issues/251)), this means that `doctest-parallel` will fail on input that GHC accepts.
 
-    doctest Fib.hs
-
-You may produce Haddock documentation for that module with:
-
-    haddock -h Fib.hs -o doc/
-
-`doctest` will fail on comments that `haddock` also doesn't like.
-Sometimes (e.g., [#251](https://github.com/sol/doctest/issues/251)), this means that `doctest` will fail on input that GHC accepts.
-
-`doctest` likes UTF-8. If you are running it with, e.g., `LC_ALL=C`,
-you may need to invoke `doctest` with `LC_ALL=C.UTF-8`.
-
-### Example groups
+## Example groups
 
 Examples from a single Haddock comment are grouped together and share the same
 scope.  E.g. the following works:
@@ -97,23 +55,7 @@ for
 
 `print n` is not tried, because `let n = x + y` fails (`y` is not in scope!).
 
-#### A note on performance
-
-By default, `doctest` calls `:reload` between each group to clear GHCi's scope
-of any local definitions. This ensures that previous examples cannot influence
-later ones. However, it can lead to performance penalties if you are using
-`doctest` in a project with many modules. One possible remedy is to pass the
-`--fast` flag to `doctest`, which disables calling `:reload` between groups.
-If `doctest`s are running too slowly, you might consider using `--fast`.
-(With the caveat that the order in which groups appear now matters!)
-
-However, note that due to a
-[bug on GHC 8.2.1 or later](https://ghc.haskell.org/trac/ghc/ticket/14052),
-the performance of `--fast` suffers significantly when combined with the
-`--preserve-it` flag (which keeps the value of GHCi's `it` value between
-examples).
-
-### Setup code
+## Setup code
 
 You can put setup code in a [named chunk][named-chunks] with the name `$setup`.
 The setup code is run before each example group.  If the setup code produces
@@ -143,7 +85,7 @@ code right after import declarations, but due to its declarative nature you can
 place it anywhere inbetween top level declarations as well.
 
 
-### Multi-line input
+## Multi-line input
 GHCi supports commands which span multiple lines, and the same syntax works for doctest:
 
 ```haskell
@@ -187,7 +129,7 @@ works = 3
 broken = 3
 ```
 
-### Multi-line output
+## Multi-line output
 If there are no blank lines in the output, multiple lines are handled
 automatically.
 
@@ -222,7 +164,7 @@ doubleSpace :: String -> String
 doubleSpace = (intercalate "\n\n") . lines
 ```
 
-### Matching arbitrary output
+## Matching arbitrary output
 Any lines containing only three dots (`...`) will match one or more lines with
 arbitrary content. For instance,
 
@@ -243,7 +185,7 @@ anything *within that line*:
 -- foo ... baz
 ```
 
-### QuickCheck properties
+## QuickCheck properties
 
 Haddock (since version 2.13.0) has markup support for properties.  Doctest can
 verify properties with QuickCheck.  A simple property looks like this:
@@ -282,9 +224,7 @@ fib 1 = 1
 fib n = fib (n - 1) + fib (n - 2)
 ```
 
-If you see an error like the following, ensure that
-[QuickCheck](http://hackage.haskell.org/package/QuickCheck) is a dependency
-of the test-suite or executable running `doctest`.
+If you see an error like the following, ensure that [QuickCheck](http://hackage.haskell.org/package/QuickCheck) is a dependency of your test-suite.
 
 ```haskell
 <interactive>:39:3:
@@ -299,7 +239,7 @@ of the test-suite or executable running `doctest`.
     In the splice: $(polyQuickCheck (mkName "doctest_prop"))
 ```
 
-### Hiding examples from Haddock
+## Hiding examples from Haddock
 
 You can put examples into [named chunks][named-chunks], and not refer to them
 in the export list.  That way they will not be part of the generated Haddock
@@ -313,34 +253,13 @@ documentation, but Doctest will still find them.
 
 [named-chunks]: http://www.haskell.org/haddock/doc/html/ch03s05.html
 
-### Using GHC extensions
+## Using GHC extensions
 
-There's two sets of GHC extensions involved when running Doctest:
-
-1. The set of GHC extensions that are active when compiling the module code
-(excluding the doctest examples). The easiest way to specify these extensions
-is through [LANGUAGE pragmas][language-pragma] in your source files.
-(Doctest will not look at your cabal file.)
-2. The set of GHC extensions that are active when executing the Doctest
-examples. (These are not influenced by the LANGUAGE pragmas in the file.) The
-recommended way to enable extensions for Doctest examples is to switch them
-on like this:
+You can enable GHC extensions using the following syntax:
 
 ```haskell
--- |
 -- >>> :set -XTupleSections
--- >>> fst' $ (1,) 2
--- 1
-fst' :: (a, b) -> a
-fst' = fst
 ```
-
-Alternatively you can pass any GHC options to Doctest, e.g.:
-
-    doctest -XCPP Foo.hs
-
-These options will affect both the loading of the module and the execution of
-the Doctest examples.
 
 If you want to omit the information which language extensions are enabled from
 the Doctest examples you can use the method described in [Hiding examples from
@@ -353,59 +272,48 @@ Haddock](#hiding-examples-from-haddock), e.g.:
 
 [language-pragma]: http://www.haskell.org/ghc/docs/latest/html/users_guide/pragmas.html#language-pragma
 
-### Cabal integration
-
-Doctest provides both, an executable and a library.  The library exposes a
-function `doctest` of type:
+## Using GHC plugins
+You can enable GHC plugins using the following syntax:
 
 ```haskell
-doctest :: [String] -> IO ()
+-- >>> :set -fplugin The.Plugin
 ```
 
-Doctest's own `main` is simply:
+## Hiding Prelude
+You _hide_ the import of `Prelude` by using:
 
 ```haskell
-main = getArgs >>= doctest
+-- >>> :m -Prelude
 ```
 
-Consequently, it is possible to create a custom executable for a project, by
-passing all command-line arguments that are required for that project to
-`doctest`.  A simple example looks like this:
+# Relation to [`doctest`](https://github.com/sol/doctest)
+This is a fork of [sol/doctest](https://github.com/sol/doctest) that allows running tests in parallel and aims to provide a more robust project integration method. It is not backwards compatible and expects to be setup differently. At the time of writing it has a few advantages over the base project:
 
-```haskell
--- file doctests.hs
-import Test.DocTest
-main = doctest ["-isrc", "src/Main.hs"]
-```
+ * It runs tests in parallel
+ * It runs tests against compiled code, instead of reinterpreting your whole project
+ * It isolates examples in modules, ensuring your tests don't accidentally rely on each other
+ * It parses cabal files to discover modules, no need for custom setup anymore!
+ * A minor change: it does not count lines in setup blocks as test cases
 
-And a corresponding Cabal test suite section like this:
+All in all, you can expect `doctest-parallel` to run about 1 or 2 orders of magnitude faster than `doctest` for large projects.
 
-    test-suite doctests
-      type:          exitcode-stdio-1.0
-      ghc-options:   -threaded
-      main-is:       doctests.hs
-      build-depends: base, doctest >= 0.8
+# Relation to [`cabal-docspec`](https://github.com/phadej/cabal-extras/tree/master/cabal-docspec)
+There is no direct relation between `doctest-parallel` and `cabal-docspec`. They are similar in some ways:
 
-## Doctest in the wild
+ * Both projects load code from precompiled modules
+ * Both project aim to get rid of the need for custom setups
 
-You can find real world examples of `Doctest` being used below:
+And different in others:
 
-  * [base Data/Maybe.hs](https://github.com/ghc/ghc/blob/669cbef03c220de43b0f88f2b2238bf3c02ed64c/libraries/base/Data/Maybe.hs#L36-L79)
-  * [base Data/Functor.hs](https://github.com/ghc/ghc/blob/669cbef03c220de43b0f88f2b2238bf3c02ed64c/libraries/base/Data/Functor.hs#L34-L64)
+ * As a fork of `doctest`, `doctest-parallel` inherits the testsuite `doctest` accumulated over the years.
+ * `doctest-parallel` parses Cabal project files, instead of parsing files from `dist-newstyle`. This makes it compatible with Stack, provided a `.cabal` is still present.
+ * `doctest-parallel` uses the GHC API to parse comments. This should in theory be more reliable (though I doubt it will ever matter in practice).
+ * `doctest-parallel` runs tests in parallel.
 
-## Development [![Build Status](https://secure.travis-ci.org/sol/doctest.png)](http://travis-ci.org/sol/doctest)
+# Development
+TODO
 
-Join in at `#hspec` on freenode.
-
-Discuss your ideas first, ideally by opening an issue on GitHub.
-
-Add tests for new features, and make sure that the test suite passes with your
-changes.
-
-    cabal configure --enable-tests && cabal build && cabal exec cabal test
-
-
-## Contributors
+# Contributors
 
  * Adam Vogt
  * Anders Persson
@@ -425,12 +333,3 @@ changes.
  * Sakari Jokinen
  * Simon Hengel
  * Sönke Hahn
-
-## Fork
-As the name of the fork implies, the biggest feature it adds is multithreaded execution of doctests. [A long story](https://github.com/sol/doctest/pull/283) short, this required a number of changes:
-
- * Every module with doctests is tested in a separate thread with its own interpreter (limited by the number of available threads, naturally).
- * Interdependency between tests in different modules has been removed. For more information, see [this PR](https://github.com/sol/doctest/pull/291).
- * To avoid recompilation _for every module_ doctest can now load tests from precompiled library files (packages dbs).
-
-Although I'd prefer these changes to float upstream, I intend to maintain this fork.

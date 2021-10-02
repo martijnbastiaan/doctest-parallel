@@ -1,4 +1,4 @@
-module Example where
+module Example (foo, bar) where
 
 -- |
 -- >>> foo
