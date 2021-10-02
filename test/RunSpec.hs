@@ -74,7 +74,7 @@ spec = do
         , "### Successful `test/integration/testSimple/Fib.hs:5'!"
         , ""
         , "# Final summary:"
-        , "Examples: 1  Tried: 1  Errors: 0  Failures: 0"
+        , "Examples: 1  Tried: 1  Errors: 0  Unexpected output: 0"
         ]
 
     it "prints verbose description of a property" $ do
@@ -86,7 +86,7 @@ spec = do
         , "### Successful `test/integration/property-bool/Foo.hs:4'!"
         , ""
         , "# Final summary:"
-        , "Examples: 1  Tried: 1  Errors: 0  Failures: 0"
+        , "Examples: 1  Tried: 1  Errors: 0  Unexpected output: 0"
         ]
 
     it "prints verbose error" $ do
@@ -102,7 +102,7 @@ spec = do
             , "          ^"
             , ""
             , "# Final summary:"
-            , "Examples: 1  Tried: 1  Errors: 0  Failures: 1"
+            , "Examples: 1  Tried: 1  Errors: 0  Unexpected output: 1"
         ]
 
 #if __GLASGOW_HASKELL__ >= 802

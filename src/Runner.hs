@@ -42,7 +42,7 @@ data Summary = Summary {
 -- | Format a summary.
 instance Show Summary where
   show (Summary examples tried errors failures) =
-    printf "Examples: %d  Tried: %d  Errors: %d  Failures: %d" examples tried errors failures
+    printf "Examples: %d  Tried: %d  Errors: %d  Unexpected output: %d" examples tried errors failures
 
 
 -- | Sum up summaries.
