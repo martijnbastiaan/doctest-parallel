@@ -21,11 +21,15 @@ import           Control.Monad.IO.Class
 import           Interpreter (Interpreter)
 import qualified Interpreter
 import           Parse
+import           Options (ModuleName)
 import           Location
 import           Property
 import           Runner.Example
 
 import           System.IO.CodePage (withCP65001)
+
+-- | Whether an "example" is part of setup block
+data FromSetup = FromSetup | NotFromSetup
 
 -- | Summary of a test run.
 data Summary = Summary {
@@ -90,16 +94,17 @@ runModules fastMode preserveIt verbose implicitPrelude args modules = do
     consumeUpdates output =<<
       case update of
         UpdateInternalError loc e -> reportInternalError loc e >> pure (modsLeft - 1)
-        UpdateSuccess loc -> reportSuccess loc >> reportProgress >> pure modsLeft
-        UpdateFailure loc expr errs -> reportFailure loc expr errs >> pure modsLeft
-        UpdateError loc expr err -> reportError loc expr err >> pure modsLeft
+        UpdateImportError modName -> reportImportError modName >> pure (modsLeft - 1)
+        UpdateSuccess fs loc -> reportSuccess fs loc >> reportProgress >> pure modsLeft
+        UpdateFailure fs loc expr errs -> reportFailure fs loc expr errs >> pure modsLeft
+        UpdateError fs loc expr err -> reportError fs loc expr err >> pure modsLeft
         UpdateVerbose msg -> verboseReport msg >> pure modsLeft
         UpdateStart loc expr msg -> reportStart loc expr msg >> pure modsLeft
         UpdateModuleDone -> pure (modsLeft - 1)
 
 -- | Count number of expressions in given module.
 count :: Module [Located DocTest] -> Int
-count (Module _ setup tests) = sum (map length tests) + maybe 0 length setup
+count (Module _ _ tests) = sum (map length tests)
 
 -- | A monad for generating test reports.
 type Report = StateT ReportState IO
@@ -150,12 +155,19 @@ runModule
   -> IO ()
 runModule fastMode preserveIt implicitPrelude ghciArgs output (Module module_ setup examples) = do
   Interpreter.withInterpreter ghciArgs $ \repl -> withCP65001 $ do
-    successes <- mapM (runTestGroup preserveIt repl (reload repl) output) setup
+    -- Try to import this module, if it fails, something is off
+    importResult <- Interpreter.safeEval repl importModule
+    case importResult of
+      Right "" -> do
+        -- Run setup group
+        successes <- mapM (runTestGroup FromSetup preserveIt repl (reload repl) output) setup
 
-    -- only run tests, if setup does not produce any errors/failures
-    when
-      (and successes)
-      (mapM_ (runTestGroup preserveIt repl (setup_ repl) output) examples)
+        -- only run tests, if setup does not produce any errors/failures
+        when
+          (and successes)
+          (mapM_ (runTestGroup NotFromSetup preserveIt repl (setup_ repl) output) examples)
+      _ ->
+        writeChan output (UpdateImportError module_)
 
     -- Signal main thread a module has been tested
     writeChan output UpdateModuleDone
@@ -163,13 +175,15 @@ runModule fastMode preserveIt implicitPrelude ghciArgs output (Module module_ se
     pure ()
 
   where
+    importModule = ":m +" ++ module_
+
     reload repl = do
       unless fastMode $
         void $ Interpreter.safeEval repl ":reload"
 
       mapM_ (Interpreter.safeEval repl) $
         if implicitPrelude
-        then [":m Prelude", ":m +" ++ module_]
+        then [":m Prelude", importModule]
         else [":m +" ++ module_]
 
       when preserveIt $
@@ -185,11 +199,11 @@ runModule fastMode preserveIt implicitPrelude ghciArgs output (Module module_ se
         Example e _ -> void $ safeEvalWith preserveIt repl e
 
 data ReportUpdate
-  = UpdateSuccess Location
+  = UpdateSuccess FromSetup Location
   -- ^ Test succeeded
-  | UpdateFailure Location Expression [String]
+  | UpdateFailure FromSetup Location Expression [String]
   -- ^ Test failed with unexpected result
-  | UpdateError Location Expression String
+  | UpdateError FromSetup Location Expression String
   -- ^ Test failed with an error
   | UpdateVerbose String
   -- ^ Message to send when verbose output is activated
@@ -198,6 +212,9 @@ data ReportUpdate
   | UpdateStart Location Expression String
   -- ^ Indicate test has started executing (verbose output)
   | UpdateInternalError (Module [Located DocTest]) SomeException
+  -- ^ Exception caught while executing internal code
+  | UpdateImportError ModuleName
+  -- ^ Could not import module
 
 makeThreadPool ::
   Int ->
@@ -218,39 +235,51 @@ reportStart :: Location -> Expression -> String -> Report ()
 reportStart loc expression testType = do
   verboseReport (printf "### Started execution at %s.\n### %s:\n%s" (show loc) testType expression)
 
-reportFailure :: Location -> Expression -> [String] -> Report ()
-reportFailure loc expression err = do
+reportFailure :: FromSetup -> Location -> Expression -> [String] -> Report ()
+reportFailure fromSetup loc expression err = do
   report (printf "%s: failure in expression `%s'" (show loc) expression)
   mapM_ report err
   report ""
-  updateSummary (Summary 0 1 0 1)
+  updateSummary fromSetup (Summary 0 1 0 1)
 
-reportError :: Location -> Expression -> String -> Report ()
-reportError loc expression err = do
+reportError :: FromSetup -> Location -> Expression -> String -> Report ()
+reportError fromSetup loc expression err = do
   report (printf "%s: error in expression `%s'" (show loc) expression)
   report err
   report ""
-  updateSummary (Summary 0 1 1 0)
+  updateSummary fromSetup (Summary 0 1 1 0)
 
 reportInternalError :: Module a -> SomeException -> Report ()
 reportInternalError mod_ err = do
   report (printf "Internal error when executing tests in %s" (moduleName mod_))
   report (show err)
   report ""
-  updateSummary (Summary 0 1 1 0)
 
-reportSuccess :: Location -> Report ()
-reportSuccess loc = do
+reportImportError :: ModuleName -> Report ()
+reportImportError modName = do
+  report ("Could not import module: " <> modName <> ". This can be caused by a number of issues: ")
+  report ""
+  report " 1. For Cabal users: Cabal did not generate a GHC environment file. Either:"
+  report "   * Run with '--write-ghc-environment-files=always'"
+  report "   * Add 'write-ghc-environment-files: always' to your cabal.project"
+  report ""
+  report " 2. The testsuite executable does not have a dependency on your project library. Please add it to the 'build-depends' section of the testsuite executable."
+  report ""
+  report "See the example project at https://github.com/martijnbastiaan/doctest-parallel/tree/master/examples for more information."
+
+reportSuccess :: FromSetup -> Location -> Report ()
+reportSuccess fromSetup loc = do
   verboseReport (printf "### Successful `%s'!\n" (show loc))
-  updateSummary (Summary 0 1 0 0)
+  updateSummary fromSetup (Summary 0 1 0 0)
 
 verboseReport :: String -> Report ()
 verboseReport xs = do
   verbose <- gets reportStateVerbose
   when verbose $ report xs
 
-updateSummary :: Summary -> Report ()
-updateSummary summary = do
+updateSummary :: FromSetup -> Summary -> Report ()
+updateSummary FromSetup _summary = return ()
+updateSummary NotFromSetup summary = do
   ReportState n f v s <- get
   put (ReportState n f v $ s `mappend` summary)
 
@@ -263,11 +292,18 @@ reportProgress = do
 --
 -- The interpreter state is zeroed with @:reload@ first.  This means that you
 -- can reuse the same 'Interpreter' for several test groups.
-runTestGroup :: Bool -> Interpreter -> IO () -> Chan ReportUpdate -> [Located DocTest] -> IO Bool
-runTestGroup preserveIt repl setup output tests = do
+runTestGroup ::
+  FromSetup ->
+  Bool ->
+  Interpreter ->
+  IO () ->
+  Chan ReportUpdate ->
+  [Located DocTest] ->
+  IO Bool
+runTestGroup fromSetup preserveIt repl setup output tests = do
 
   setup
-  successExamples <- runExampleGroup preserveIt repl output examples
+  successExamples <- runExampleGroup fromSetup preserveIt repl output examples
 
   successesProperties <- forM properties $ \(loc, expression) -> do
     r <- do
@@ -277,13 +313,13 @@ runTestGroup preserveIt repl setup output tests = do
 
     case r of
       Success -> do
-        writeChan output (UpdateSuccess loc)
+        writeChan output (UpdateSuccess fromSetup loc)
         pure True
       Error err -> do
-        writeChan output (UpdateError loc expression err)
+        writeChan output (UpdateError fromSetup loc expression err)
         pure False
       Failure msg -> do
-        writeChan output (UpdateFailure loc expression [msg])
+        writeChan output (UpdateFailure fromSetup loc expression [msg])
         pure False
 
   pure (successExamples && and successesProperties)
@@ -296,22 +332,28 @@ runTestGroup preserveIt repl setup output tests = do
 -- |
 -- Execute all expressions from given example in given 'Interpreter' and verify
 -- the output.
-runExampleGroup :: Bool -> Interpreter -> Chan ReportUpdate -> [Located Interaction] -> IO Bool
-runExampleGroup preserveIt repl output = go
+runExampleGroup ::
+  FromSetup ->
+  Bool ->
+  Interpreter ->
+  Chan ReportUpdate ->
+  [Located Interaction] ->
+  IO Bool
+runExampleGroup fromSetup preserveIt repl output = go
   where
     go ((Located loc (expression, expected)) : xs) = do
       writeChan output (UpdateStart loc expression "example")
       r <- fmap lines <$> safeEvalWith preserveIt repl expression
       case r of
         Left err -> do
-          writeChan output (UpdateError loc expression err)
+          writeChan output (UpdateError fromSetup loc expression err)
           pure False
         Right actual -> case mkResult expected actual of
           NotEqual err -> do
-            writeChan output (UpdateFailure loc expression err)
+            writeChan output (UpdateFailure fromSetup loc expression err)
             pure False
           Equal -> do
-            writeChan output (UpdateSuccess loc)
+            writeChan output (UpdateSuccess fromSetup loc)
             go xs
     go [] =
       pure True
