@@ -24,7 +24,7 @@ import qualified Control.Monad.Trans.RWS as RWS
 import           Control.Monad (when)
 import           Data.List.Compat
 
-import qualified Paths_doctest
+import qualified Paths_doctest_parallel
 import           Data.Version (showVersion)
 
 #if __GLASGOW_HASKELL__ < 900
@@ -53,7 +53,7 @@ usage = unlines [
   ]
 
 version :: String
-version = showVersion Paths_doctest.version
+version = showVersion Paths_doctest_parallel.version
 
 ghcVersion :: String
 ghcVersion = GHC.cProjectVersion

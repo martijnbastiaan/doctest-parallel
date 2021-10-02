@@ -1,21 +1,15 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.3.
---
--- see: https://github.com/sol/hpack
---
--- hash: 3facc9d2a0d1484030326d770c130287a867da080f49bf875a6432f0eb9c4c6a
-
-name:           doctest
-version:        0.18.1
+name:           doctest-parallel
+version:        0.1
 synopsis:       Test interactive Haskell examples
 description:    The doctest program checks examples in source code comments.  It is modeled
                 after doctest for Python (<https://docs.python.org/3/library/doctest.html>).
                 .
-                Documentation is at <https://github.com/martijnbastiaan/doctest#readme>.
+                Documentation is at <https://github.com/martijnbastiaan/doctest-parallel#readme>.
 category:       Testing
-bug-reports:    https://github.com/martijnbastiaan/doctest/issues
-homepage:       https://github.com/martijnbastiaan/doctest#readme
+bug-reports:    https://github.com/martijnbastiaan/doctest-parallel/issues
+homepage:       https://github.com/martijnbastiaan/doctest-parallel#readme
 license:        MIT
 license-file:   LICENSE
 copyright:      (c) 2009-2018 Simon Hengel, 2021 Martijn Bastiaan
@@ -39,7 +33,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/martijnbastiaan/doctest
+  location: https://github.com/martijnbastiaan/doctest-parallel
 
 library
   ghc-options: -Wall
@@ -61,7 +55,7 @@ library
       Runner.Example
       Util
       Language.Haskell.GhciWrapper
-      Paths_doctest
+      Paths_doctest_parallel
   build-depends:
       Cabal
     , Glob
