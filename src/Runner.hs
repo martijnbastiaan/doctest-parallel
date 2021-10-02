@@ -56,8 +56,6 @@ instance Semigroup Summary where
 -- | Run all examples from a list of modules.
 runModules
   :: Bool
-  -- ^ Fast mode
-  -> Bool
   -- ^ Preserve it
   -> Bool
   -- ^ Verbose
@@ -68,11 +66,11 @@ runModules
   -> [Module [Located DocTest]]
   -- ^ Modules under test
   -> IO Summary
-runModules fastMode preserveIt verbose implicitPrelude args modules = do
+runModules preserveIt verbose implicitPrelude args modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
-  (input, output) <- makeThreadPool 24 (runModule fastMode preserveIt implicitPrelude args)
+  (input, output) <- makeThreadPool 24 (runModule preserveIt implicitPrelude args)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
@@ -148,12 +146,11 @@ overwrite msg = do
 runModule
   :: Bool
   -> Bool
-  -> Bool
   -> [String]
   -> Chan ReportUpdate
   -> Module [Located DocTest]
   -> IO ()
-runModule fastMode preserveIt implicitPrelude ghciArgs output (Module module_ setup examples) = do
+runModule preserveIt implicitPrelude ghciArgs output (Module module_ setup examples) = do
   Interpreter.withInterpreter ghciArgs $ \repl -> withCP65001 $ do
     -- Try to import this module, if it fails, something is off
     importResult <- Interpreter.safeEval repl importModule
@@ -178,9 +175,7 @@ runModule fastMode preserveIt implicitPrelude ghciArgs output (Module module_ se
     importModule = ":m +" ++ module_
 
     reload repl = do
-      unless fastMode $
-        void $ Interpreter.safeEval repl ":reload"
-
+      void $ Interpreter.safeEval repl ":reload"
       mapM_ (Interpreter.safeEval repl) $
         if implicitPrelude
         then [":m Prelude", importModule]

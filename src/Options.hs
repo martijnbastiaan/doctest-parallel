@@ -44,7 +44,6 @@ usage = unlines [
   , "  doctest --info"
   , ""
   , "Options:"
-  , "  --fast                   disable :reload between example groups"
   , "  --preserve-it            preserve the `it` variable between examples"
   , "  --verbose                print each test as it is run"
   , "  --help                   display this help and exit"
@@ -79,9 +78,7 @@ type Warning = String
 type ModuleName = String
 
 data Config = Config
-  { cfgFastMode :: Bool
-  -- ^ Don't run @:reload@ between tests (default: @False@)
-  , cfgPreserveIt :: Bool
+  { cfgPreserveIt :: Bool
   -- ^ Preserve the @it@ variable between examples (default: @False@)
   , cfgVerbose :: Bool
   -- ^ Verbose output (default: @False@)
@@ -89,8 +86,7 @@ data Config = Config
 
 defaultConfig :: Config
 defaultConfig = Config
-  { cfgFastMode = False
-  , cfgPreserveIt = False
+  { cfgPreserveIt = False
   , cfgVerbose = False
   }
 
@@ -114,12 +110,8 @@ parseOptions args
     where
       parse :: RWS () [Warning] (Config, [String]) ()
       parse = do
-        stripFast
         stripPreserveIt
         stripVerbose
-
-stripFast :: RWS () [Warning] (Config, [String]) ()
-stripFast = stripFlag (\cfg -> cfg{cfgFastMode=True}) "--fast"
 
 stripPreserveIt :: RWS () [Warning] (Config, [String]) ()
 stripPreserveIt = stripFlag (\cfg -> cfg{cfgPreserveIt=True}) "--preserve-it"

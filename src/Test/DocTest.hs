@@ -90,4 +90,4 @@ main lib mods Config{..} = do
   -- get examples from Haddock comments
   allModules <- getDocTests (includeArgs ++ moduleArgs ++ otherGhciArgs)
   let modules = filterModules mods allModules
-  runModules cfgFastMode cfgPreserveIt cfgVerbose implicitPrelude evalGhciArgs modules
+  runModules cfgPreserveIt cfgVerbose implicitPrelude evalGhciArgs modules
