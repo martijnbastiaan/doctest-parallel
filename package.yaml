@@ -5,20 +5,17 @@ description: |
   The doctest program checks examples in source code comments.  It is modeled
   after doctest for Python (<https://docs.python.org/3/library/doctest.html>).
 
-  Documentation is at <https://github.com/sol/doctest#readme>.
+  Documentation is at <https://github.com/martijnbastiaan/doctest#readme>.
 category:         Testing
 license:          MIT
-copyright:        (c) 2009-2018 Simon Hengel
-author:           Simon Hengel <sol@typeful.net>
-maintainer:       quasicomputational <quasicomputational@gmail.com>
+copyright:        (c) 2009-2018 Simon Hengel, 2021 Martijn Bastiaan
+author:           Martijn Bastiaan <martijn@hmbastiaan.nl>
+maintainer:       Martijn Bastiaan <martijn@hmbastiaan.nl>
 
 
-github: sol/doctest
+github: martijnbastiaan/doctest
 
 tested-with:
-- GHC == 7.6.3
-- GHC == 7.8.4
-- GHC == 7.10.3
 - GHC == 8.0.2
 - GHC == 8.2.2
 - GHC == 8.4.4
@@ -29,9 +26,6 @@ tested-with:
 
 extra-source-files:
 - example/**/*
-- test/parse/**/*
-- test/extract/**/*
-- test/integration/**/*
 - CHANGES.markdown
 - README.markdown
 
@@ -40,11 +34,16 @@ ghc-options: -Wall
 dependencies:
 - base >= 4.8 && < 5
 - base-compat >= 0.7.0
+- Cabal
+- cabal-install-parsers
 - code-page >= 0.1
+- containers
 - deepseq
 - directory
 - exceptions
 - filepath
+- Glob
+- pretty
 - ghc >= 7.10 && < 9.1
 - ghc-paths >= 0.1.0.9
 - process
@@ -58,12 +57,7 @@ library:
   - ghci-wrapper/src
   exposed-modules:
   - Test.DocTest
-
-executable:
-  main: Main.hs
-  ghc-options: -threaded
-  source-dirs: driver
-  dependencies: doctest
+  - Test.DocTest.Helpers
 
 tests:
   spec:

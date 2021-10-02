@@ -9,6 +9,7 @@ module Options (
 , parseOptions
 
 -- * Internals
+, ModuleName
 , usage
 , info
 , versionInfo
@@ -38,7 +39,7 @@ import           Interpreter (ghc)
 usage :: String
 usage = unlines [
     "Usage:"
-  , "  doctest [ --fast | --preserve-it | --no-magic | --verbose | --no-isolate-modules | --[no-]load-from-package | GHC OPTION | MODULE ]..."
+  , "  doctest [ --fast | --preserve-it | --verbose ]..."
   , "  doctest --help"
   , "  doctest --version"
   , "  doctest --info"
@@ -47,8 +48,6 @@ usage = unlines [
   , "  --fast                   disable :reload between example groups"
   , "  --preserve-it            preserve the `it` variable between examples"
   , "  --verbose                print each test as it is run"
-  , "  --no-isolate-modules     disable module isolation; run all tests in single GHCi session"
-  , "  --[no-]load-from-package [do not] load module under test from package database (default: auto detection)"
   , "  --help                   display this help and exit"
   , "  --version                output version information and exit"
   , "  --info                   output machine-readable version information and exit"
@@ -78,21 +77,15 @@ data Result a = Output String | Result ([Warning], a)
   deriving (Eq, Show, Functor)
 
 type Warning = String
+type ModuleName = String
 
 data Config = Config
-  { cfgOptions :: [String]
-  -- ^ Options passed to GHCi session (default: @[]@)
-  , cfgMagicMode :: Bool
-  -- ^ Try to automatically find package databases (default: @True@)
-  , cfgFastMode :: Bool
+  { cfgFastMode :: Bool
   -- ^ Don't run @:reload@ between tests (default: @False@)
   , cfgPreserveIt :: Bool
   -- ^ Preserve the @it@ variable between examples (default: @False@)
   , cfgVerbose :: Bool
   -- ^ Verbose output (default: @False@)
-  , cfgIsolateModules :: Bool
-  -- ^ Run each module in a separate GHCi session (default: @True@)
-  , cfgLoadFromPackage :: LoadFromPackage
   } deriving (Show, Eq)
 
 -- | Doctest starts a GHCi process to test
@@ -109,51 +102,34 @@ data LoadFromPackage
 
 defaultConfig :: Config
 defaultConfig = Config
-  { cfgOptions = []
-  , cfgMagicMode = True
-  , cfgFastMode = False
+  { cfgFastMode = False
   , cfgPreserveIt = False
   , cfgVerbose = False
-  , cfgIsolateModules = True
-  , cfgLoadFromPackage = AutoLoadFromPackage
   }
 
-parseOptions :: [String] -> Result Config
+isFlag :: String -> Bool
+isFlag ('-':_) = True
+isFlag _ = False
+
+parseOptions :: [String] -> ([ModuleName], Result Config)
 parseOptions args
-  | "--help" `elem` args = Output usage
-  | "--info" `elem` args = Output info
-  | "--version" `elem` args = Output versionInfo
-  | otherwise = case execRWS parse () (defaultConfig, args) of
-      ((config, ghciArgs), warnings) ->
-        Result (warnings, config{cfgOptions=ghciArgs})
+  | "--help" `elem` args    = ([], Output usage)
+  | "--info" `elem` args    = ([], Output info)
+  | "--version" `elem` args = ([], Output versionInfo)
+  | otherwise =
+      case execRWS parse () (defaultConfig, args) of
+        ((config, extraArgs), warnings) ->
+          case partition isFlag extraArgs of
+            ([], mods) ->
+              (mods, Result (warnings, config))
+            (unknownFlags, _mods) ->
+              error ("Unknown command line arguments: " <> show unknownFlags)
     where
       parse :: RWS () [Warning] (Config, [String]) ()
       parse = do
-        stripNoMagic
         stripFast
         stripPreserveIt
         stripVerbose
-        stripNoIsolateModules
-        stripLoadFromPackage
-        stripNoLoadFromPackage
-
-        -- must be executed last
-        stripOptGhc
-
-stripNoIsolateModules :: RWS () [Warning] (Config, [String]) ()
-stripNoIsolateModules =
-  stripFlag (\cfg -> cfg{cfgIsolateModules=False}) "--no-isolate-modules"
-
-stripLoadFromPackage :: RWS () [Warning] (Config, [String]) ()
-stripLoadFromPackage =
-  stripFlag (\cfg -> cfg{cfgLoadFromPackage=AlwaysLoadFromPackage}) "--load-from-package"
-
-stripNoLoadFromPackage :: RWS () [Warning] (Config, [String]) ()
-stripNoLoadFromPackage =
-  stripFlag (\cfg -> cfg{cfgLoadFromPackage=NeverLoadFromPackage}) "--no-load-from-package"
-
-stripNoMagic :: RWS () [Warning] (Config, [String]) ()
-stripNoMagic = stripFlag (\cfg -> cfg{cfgMagicMode=False}) "--no-magic"
 
 stripFast :: RWS () [Warning] (Config, [String]) ()
 stripFast = stripFlag (\cfg -> cfg{cfgFastMode=True}) "--fast"
@@ -186,24 +162,3 @@ parseFlag arg =
     (flag, ['=']) -> (flag, Nothing)
     (flag, ('=':opt)) -> (flag, Just opt)
     (flag, _) -> (flag, Nothing)
-
-
-stripOptGhc :: RWS () [Warning] (Config, [String]) ()
-stripOptGhc = do
-  (cfg, args0) <- RWS.get
-  case go args0 of
-    (False, _) -> pure ()
-    (True, args1) -> do
-      RWS.tell [warning]
-      RWS.put (cfg, args1)
-  where
-    warning = "WARNING: --optghc is deprecated, doctest now accepts arbitrary GHC options\ndirectly."
-
-    bimap f g (a, b) = (f a, g b)
-
-    go :: [String] -> (Bool, [String])
-    go [] = (False, [])
-    go ("--optghc":opt:rest) = bimap (True ||) (opt:) (go rest)
-    go (arg:rest)
-      | ("--optghc", Just val) <- parseFlag arg = bimap (True ||) (val:) (go rest)
-      | otherwise = bimap (False ||) (arg:) (go rest)

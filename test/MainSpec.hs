@@ -152,9 +152,6 @@ spec = do
       doctest "property-setup" ["Foo.hs"]
         (cases 3)
 
-#if __GLASGOW_HASKELL__ > 710
-  -- Example uses TypeApplications to trigger isolation errors, which was only
-  -- introduced in GHC 8.0.
   describe "doctest (module isolation)" $ do
     it "should fail with module isolation" $ do
       doctestWithOpts defaultConfig{cfgIsolateModules=True} "module-isolation" ["TestA.hs", "TestB.hs"]
@@ -162,7 +159,6 @@ spec = do
     it "should work without module isolation" $ do
       doctestWithOpts defaultConfig{cfgIsolateModules=False} "module-isolation" ["TestA.hs", "TestB.hs"]
         (cases 3)
-#endif
 
   describe "doctest (regression tests)" $ do
     it "bugfixWorkingDirectory" $ do

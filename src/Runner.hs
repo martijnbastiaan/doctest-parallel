@@ -1,22 +1,12 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE MultiWayIf #-}
+
 module Runner (
   runModules
 , Summary(..)
-
-#ifdef TEST
-, Report
-, ReportState (..)
-, report
-, report_
-#endif
 ) where
 
 import           Prelude hiding (putStr, putStrLn, error)
-
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid hiding ((<>))
-import           Control.Applicative
-#endif
 
 import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO)
 import           Control.Exception (SomeException, catch)
@@ -54,13 +44,10 @@ instance Show Summary where
 -- | Sum up summaries.
 instance Monoid Summary where
   mempty = Summary 0 0 0 0
-#if MIN_VERSION_base(4,11,0)
+
 instance Semigroup Summary where
-  (<>)
-#else
-  mappend
-#endif
-    (Summary x1 x2 x3 x4) (Summary y1 y2 y3 y4) = Summary (x1 + y1) (x2 + y2) (x3 + y3) (x4 + y4)
+  (<>) (Summary x1 x2 x3 x4) (Summary y1 y2 y3 y4) =
+    Summary (x1 + y1) (x2 + y2) (x3 + y3) (x4 + y4)
 
 -- | Run all examples from a list of modules.
 runModules
@@ -71,21 +58,17 @@ runModules
   -> Bool
   -- ^ Verbose
   -> Bool
-  -- ^ Load from package
-  -> Either [String] Interpreter
-  -- ^ If /Left/: each module is tested in its own GHCi session to prevent
-  -- dependencies between modules. The strings are the arguments passed to the
-  -- GHCi process.
-  --
-  -- If /Right/: modules are tested using the same GHCi process.
+  -- ^ Implicit Prelude
+  -> [String]
+  -- ^ Arguments passed to the GHCi process.
   -> [Module [Located DocTest]]
   -- ^ Modules under test
   -> IO Summary
-runModules fastMode preserveIt verbose loadFromPackage replE modules = do
+runModules fastMode preserveIt verbose implicitPrelude args modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
-  (input, output) <- makeThreadPool 24 (runModule fastMode preserveIt loadFromPackage replE)
+  (input, output) <- makeThreadPool 24 (runModule fastMode preserveIt implicitPrelude args)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
@@ -161,39 +144,33 @@ runModule
   :: Bool
   -> Bool
   -> Bool
-  -> Either [String] Interpreter
+  -> [String]
   -> Chan ReportUpdate
   -> Module [Located DocTest]
   -> IO ()
-runModule fastMode preserveIt loadFromPackage (Left ghciArgs) output mod_ = do
-  Interpreter.withInterpreter ghciArgs $ \repl ->
-    withCP65001 $
-      runModule fastMode preserveIt loadFromPackage (Right repl) output mod_
+runModule fastMode preserveIt implicitPrelude ghciArgs output (Module module_ setup examples) = do
+  Interpreter.withInterpreter ghciArgs $ \repl -> withCP65001 $ do
+    successes <- mapM (runTestGroup preserveIt repl (reload repl) output) setup
 
-runModule fastMode preserveIt loadFromPackage (Right repl) output (Module module_ setup examples) = do
+    -- only run tests, if setup does not produce any errors/failures
+    when
+      (and successes)
+      (mapM_ (runTestGroup preserveIt repl (setup_ repl) output) examples)
 
-  successes <- mapM (runTestGroup preserveIt repl reload output) setup
+    -- Signal main thread a module has been tested
+    writeChan output UpdateModuleDone
 
-  -- only run tests, if setup does not produce any errors/failures
-  when (and successes) (mapM_ (runTestGroup preserveIt repl setup_ output) examples)
-
-  -- Signal main thread a module has been tested
-  writeChan output UpdateModuleDone
-
-  pure ()
+    pure ()
 
   where
-    reload :: IO ()
-    reload = do
+    reload repl = do
       unless fastMode $
-        -- NOTE: It is important to do the :reload first! See
-        -- https://ghc.haskell.org/trac/ghc/ticket/5904, which results in a
-        -- panic on GHC 7.4.1 if you do the :reload second.
         void $ Interpreter.safeEval repl ":reload"
 
-      if loadFromPackage
-      then void $ Interpreter.safeEval repl $ "import " ++ module_
-      else void $ Interpreter.safeEval repl $ ":m *" ++ module_
+      mapM_ (Interpreter.safeEval repl) $
+        if implicitPrelude
+        then [":m Prelude", ":m +" ++ module_]
+        else [":m +" ++ module_]
 
       when preserveIt $
         -- Evaluate a dumb expression to populate the 'it' variable NOTE: This is
@@ -201,9 +178,8 @@ runModule fastMode preserveIt loadFromPackage (Right repl) output (Module module
         -- a fresh GHCi session.
         void $ Interpreter.safeEval repl $ "()"
 
-    setup_ :: IO ()
-    setup_ = do
-      reload
+    setup_ repl = do
+      reload repl
       forM_ setup $ \l -> forM_ l $ \(Located _ x) -> case x of
         Property _  -> return ()
         Example e _ -> void $ safeEvalWith preserveIt repl e

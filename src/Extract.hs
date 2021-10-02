@@ -3,23 +3,14 @@ module Extract (Module(..), extract) where
 
 import           Prelude hiding (mod, concat)
 import           Control.Monad
-#if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative
-#endif
 import           Control.Exception
-import           Data.List (partition, isSuffixOf)
+import           Data.List (partition)
 import           Data.Maybe
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Foldable (concat)
-#endif
 
 import           Control.DeepSeq (deepseq, NFData(rnf))
 import           Data.Generics
 
-#if __GLASGOW_HASKELL__ < 707
-import           GHC hiding (flags, Module, Located)
-import           MonadUtils (liftIO, MonadIO)
-#elif __GLASGOW_HASKELL__ < 900
+#if __GLASGOW_HASKELL__ < 900
 import           GHC hiding (Module, Located)
 import           DynFlags
 import           MonadUtils (liftIO)
@@ -41,11 +32,6 @@ import           Control.Monad.Catch (generalBracket)
 import           System.Directory
 import           System.FilePath
 
-#if __GLASGOW_HASKELL__ < 710
-import           NameSet (NameSet)
-import           Coercion (Coercion)
-#endif
-
 #if __GLASGOW_HASKELL__ < 805
 import           FastString (unpackFS)
 #endif
@@ -56,7 +42,6 @@ import           GhcUtil (withGhc)
 import           Location hiding (unLoc)
 
 import           Util (convertDosLineEndings)
-import           PackageDBs (getPackageDBArgs)
 
 #if __GLASGOW_HASKELL__ >= 806
 #if __GLASGOW_HASKELL__ < 900
@@ -93,7 +78,7 @@ data Module a = Module {
   moduleName    :: String
 , moduleSetup   :: Maybe a
 , moduleContent :: [a]
-} deriving (Eq, Functor)
+} deriving (Eq, Functor, Show)
 
 instance NFData a => NFData (Module a) where
   rnf (Module name setup content) = name `deepseq` setup `deepseq` content `deepseq` ()
@@ -115,10 +100,7 @@ addQuoteInclude includes new = new ++ includes
 
 -- | Parse a list of modules.
 parse :: [String] -> IO [ParsedModule]
-parse args = withGhc args $ \modules_ -> withTempOutputDir $ do
-
-  -- ignore additional object files
-  let modules = filter (not . isSuffixOf ".o") modules_
+parse args = withGhc args $ \modules -> withTempOutputDir $ do
 
   mapM (`guessTarget` Nothing) modules >>= setTargets
   mods <- depanal [] False
@@ -131,9 +113,7 @@ parse args = withGhc args $ \modules_ -> withTempOutputDir $ do
     -- copied from Haddock/Interface.hs
     enableCompilation :: ModuleGraph -> Ghc ModuleGraph
     enableCompilation modGraph = do
-#if __GLASGOW_HASKELL__ < 707
-      let enableComp d = d { hscTarget = defaultObjectTarget }
-#elif __GLASGOW_HASKELL__ < 809
+#if __GLASGOW_HASKELL__ < 809
       let enableComp d = let platform = targetPlatform d
                          in d { hscTarget = defaultObjectTarget platform }
 #else
@@ -149,15 +129,10 @@ parse args = withGhc args $ \modules_ -> withTempOutputDir $ do
     modifySessionDynFlags :: (DynFlags -> DynFlags) -> Ghc ()
     modifySessionDynFlags f = do
       dflags <- getSessionDynFlags
-#if __GLASGOW_HASKELL__ < 707
-      _ <- setSessionDynFlags (f dflags)
-#else
-      -- GHCi 7.7 now uses dynamic linking.
       let dflags' = case lookup "GHC Dynamic" (compilerInfo dflags) of
             Just "YES" -> gopt_set dflags Opt_BuildDynamicToo
             _          -> dflags
       _ <- setSessionDynFlags (f dflags')
-#endif
       return ()
 
     withTempOutputDir :: Ghc a -> Ghc a
@@ -203,9 +178,7 @@ parse args = withGhc args $ \modules_ -> withTempOutputDir $ do
 -- those modules (possibly indirect).
 extract :: [String] -> IO [Module (Located String)]
 extract args = do
-  packageDBArgs <- getPackageDBArgs
-  let args'  = args ++ packageDBArgs
-  mods <- parse args'
+  mods <- parse args
   let docs = map (fmap (fmap convertDosLineEndings) . extractFromModule) mods
 
   (docs `deepseq` return docs) `catches` [
@@ -238,9 +211,7 @@ docStringsFromModule mod = map (fmap (toLocated . fmap unpackHDS)) docs
     -- traversing the whole source in a generic way, to ensure that we get
     -- everything in source order.
     header  = [(Nothing, x) | Just x <- [hsmodHaddockModHeader source]]
-#if __GLASGOW_HASKELL__ < 710
-    exports = [(Nothing, L loc doc) | L loc (IEDoc doc) <- concat (hsmodExports source)]
-#elif __GLASGOW_HASKELL__ < 805
+#if __GLASGOW_HASKELL__ < 805
     exports = [(Nothing, L loc doc) | L loc (IEDoc doc) <- maybe [] unLoc (hsmodExports source)]
 #else
     exports = [(Nothing, L loc doc) | L loc (IEDoc _ doc) <- maybe [] unLoc (hsmodExports source)]
@@ -248,12 +219,6 @@ docStringsFromModule mod = map (fmap (toLocated . fmap unpackHDS)) docs
     decls   = extractDocStrings (hsmodDecls source)
 
 type Selector a = a -> ([(Maybe String, LHsDocString)], Bool)
-
-#if __GLASGOW_HASKELL__ < 710
--- | Ignore a subtree.
-ignore :: Selector a
-ignore = const ([], True)
-#endif
 
 -- | Collect given value and descend into subtree.
 select :: a -> ([a], Bool)
@@ -264,31 +229,6 @@ extractDocStrings :: Data a => a -> [(Maybe String, LHsDocString)]
 extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
   `extQ` fromLDocDecl
   `extQ` fromLHsDocString
-#if __GLASGOW_HASKELL__ < 710
-  `extQ` (ignore :: Selector NameSet)
-  `extQ` (ignore :: Selector PostTcKind)
-
-  -- HsExpr never contains any documentation, but it may contain error thunks.
-  --
-  -- Problematic are (non comprehensive):
-  --
-  --  * parallel list comprehensions
-  --  * infix operators
-  --
-  `extQ` (ignore :: Selector (HsExpr RdrName))
-
-  -- undefined before type checking
-  `extQ` (ignore :: Selector Coercion)
-
-#if __GLASGOW_HASKELL__ >= 706
-  -- hswb_kvs and hswb_tvs may be error thunks
-  `extQ` (ignore :: Selector (HsWithBndrs [LHsType RdrName]))
-  `extQ` (ignore :: Selector (HsWithBndrs [LHsType Name]))
-  `extQ` (ignore :: Selector (HsWithBndrs (LHsType RdrName)))
-  `extQ` (ignore :: Selector (HsWithBndrs (LHsType Name)))
-#endif
-
-#endif
   )
   where
     fromLHsDecl :: Selector (LHsDecl GhcPs)
