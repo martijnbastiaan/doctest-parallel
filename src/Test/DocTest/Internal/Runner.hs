@@ -25,6 +25,10 @@ import           Test.DocTest.Internal.Runner.Example
 
 import           System.IO.CodePage (withCP65001)
 
+#if __GLASGOW_HASKELL__ < 804
+import Data.Semigroup
+#endif
+
 -- | Whether an "example" is part of setup block
 data FromSetup = FromSetup | NotFromSetup
 
@@ -45,6 +49,9 @@ instance Show Summary where
 -- | Sum up summaries.
 instance Monoid Summary where
   mempty = Summary 0 0 0 0
+#if __GLASGOW_HASKELL__ < 804
+  mappend = (<>)
+#endif
 
 instance Semigroup Summary where
   (<>) (Summary x1 x2 x3 x4) (Summary y1 y2 y3 y4) =

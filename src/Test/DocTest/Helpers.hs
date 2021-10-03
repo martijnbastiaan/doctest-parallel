@@ -13,6 +13,10 @@ import System.Directory
 import System.FilePath ((</>), isDrive, takeDirectory)
 import System.FilePath.Glob (glob)
 
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid ((<>))
+#endif
+
 -- Cabal
 import Distribution.ModuleName (ModuleName)
 import Distribution.Simple
@@ -110,7 +114,7 @@ compatPrettyShow = id
 
 -- Given a filepath to a @package.cabal@, parse it, and yield a "Library". Yields
 -- the default Library if first argument is Nothing, otherwise it will look for
--- a specific sublibrary. 
+-- a specific sublibrary.
 extractSpecificCabalLibrary :: Maybe String -> FilePath -> IO Library
 extractSpecificCabalLibrary maybeLibName pkgPath = do
   pkg <- readPackage pkgPath

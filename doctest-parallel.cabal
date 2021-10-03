@@ -17,12 +17,11 @@ author:         Martijn Bastiaan <martijn@hmbastiaan.nl>
 maintainer:     Martijn Bastiaan <martijn@hmbastiaan.nl>
 build-type:     Simple
 tested-with:
-    GHC == 8.0.2
-  , GHC == 8.2.2
+    GHC == 8.2.2
   , GHC == 8.4.4
   , GHC == 8.6.5
   , GHC == 8.8.4
-  , GHC == 8.10.4
+  , GHC == 8.10.7
   , GHC == 9.0.1
 extra-source-files:
     example/example.cabal
@@ -59,7 +58,7 @@ library
   build-depends:
       Cabal
     , Glob
-    , base >=4.8 && <5
+    , base >=4.10 && <5
     , base-compat >=0.7.0
     , cabal-install-parsers
     , code-page >=0.1
@@ -152,6 +151,8 @@ test-suite spectests
   cpp-options: -DTEST
   hs-source-dirs:
       test
+  build-tool-depends:
+    hspec-discover:hspec-discover
   build-depends:
       HUnit
     , QuickCheck >=2.13.1
@@ -167,6 +168,7 @@ test-suite spectests
     , ghc-paths >=0.1.0.9
     , hspec >=2.3.0
     , hspec-core >=2.3.0
+    , hspec-discover
     , mockery
     , process
     , setenv

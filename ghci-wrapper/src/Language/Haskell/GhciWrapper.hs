@@ -1,4 +1,7 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MultiWayIf #-}
+
 module Language.Haskell.GhciWrapper (
   Interpreter
 , Config(..)
@@ -111,12 +114,19 @@ getResult echoMode Interpreter{hOut = stdout} = go
   where
     go = do
       line <- hGetLine stdout
-      if marker `isSuffixOf` line
-        then do
+
+      if
+        | marker `isSuffixOf` line -> do
           let xs = stripMarker line
           echo xs
           return xs
-        else do
+#if __GLASGOW_HASKELL__ < 810
+        -- For some (happy) reason newer GHCs don't decide to print this
+        -- message - or at least we don't see it.
+        | "Loaded package environment from " `isPrefixOf` line -> do
+          go
+#endif
+        | otherwise -> do
           echo (line ++ "\n")
           result <- go
           return (line ++ "\n" ++ result)

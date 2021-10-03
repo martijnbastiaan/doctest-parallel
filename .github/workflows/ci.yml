@@ -1,83 +1,43 @@
-name: doctest-CI
+name: doctest-parallel-ci
 on:
   - push
   - pull_request
 jobs:
   linux:
-    name: doctest-CI Linux - GHC ${{ matrix.ghc }}
-    runs-on: ubuntu-18.04
+    name: Linux - GHC ${{ matrix.ghc }}
+    runs-on: ubuntu-20.04
     container:
-      image: buildpack-deps:bionic
-    continue-on-error: ${{ matrix.allow-failure }}
+      image: docker.pkg.github.com/martijnbastiaan/doctest-parallel/focal-ghc-${{ matrix.ghc }}:2021-10-03
+      credentials:
+        username: martijnbastiaan
+        password: ${{ secrets.READ_ONLY_DOCKER_TOKEN }}
     strategy:
       matrix:
-        include:
-          - ghc: "9.0.1"
-            cabal: "3.4"
-            allow-failure: false
-          # - ghc: "8.10.4"
-          #   cabal: "3.2"
-          #   allow-failure: false
-          # - ghc: "8.8.4"
-          #   cabal: "3.0"
-          #   allow-failure: false
-          # - ghc: "8.6.5"
-          #   cabal: "2.4"
-          #   allow-failure: false
-          # - ghc: "8.4.4"
-          #   cabal: "2.4"
-          #   allow-failure: false
-          # - ghc: "8.2.2"
-          #   cabal: "2.4"
-          #   allow-failure: false
-          # - ghc: "8.0.2"
-          #   cabal: "2.4"
-          #   allow-failure: false
-          # - ghc: "7.10.3"
-          #   cabal: "2.4"
-          #   allow-failure: false
+        ghc: ["9.0.1", "8.10.7", "8.8.4", "8.6.5", "8.4.4", "8.2.2"]
       fail-fast: false
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v2
 
-      - name: apt
-        run: |
-          apt-get update
-          apt-get install -y software-properties-common
-          apt-add-repository -y 'ppa:hvr/ghc'
-          apt-get update
-          apt-get install -y "ghc-$GHC_VERSION" "cabal-install-$CABAL_VERSION"
-        env:
-          GHC_VERSION: ${{ matrix.ghc }}
-          CABAL_VERSION: ${{ matrix.cabal }}
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cabal
+          key: ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ github.ref }}-${{ github.sha }}
+            ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ github.ref }}-
+            ${{ runner.os }}-ghc-${{ matrix.ghc }}-
 
-      - name: env vars
+      - name: Build
         run: |
-          echo "LC_ALL=C.UTF-8" >> $GITHUB_ENV
-          echo "/opt/ghc/$GHC_VERSION/bin:/opt/cabal/$CABAL_VERSION/bin:$PATH" >> $GITHUB_PATH
-          CABAL_OPTS=""
-          case "$GHC_VERSION" in
-          head )
-            CABAL_OPTS="$CABAL_OPTS --allow-newer"
-            ;;
-          esac
-          printf 'CABAL_OPTS=%s' "$CABAL_OPTS" >> $GITHUB_ENV
-        env:
-          GHC_VERSION: ${{ matrix.ghc }}
-          CABAL_VERSION: ${{ matrix.cabal }}
+          cabal v2-update
+          cabal v2-build all
 
-      - name: haskell deps
+      - name: Test - doctests
         run: |
-          ghc --version
-          cabal --version
-          cabal v1-update
-          sed -i 's/^jobs:/-- jobs:/' "${HOME}/.cabal/config"
-          cd "$GITHUB_WORKSPACE"
-          cabal v1-install --enable-tests --only-dep $CABAL_OPTS
+          cabal v2-run doctests
 
-      - name: script
+      - name: Test - spectests
         run: |
-          cd "$GITHUB_WORKSPACE"
-          (cd ghci-wrapper && cabal v1-configure --enable-tests --ghc-options=-Werror $CABAL_OPTS && cabal v1-build && cabal v1-test)
-          cabal v1-configure --enable-tests --ghc-options=-Werror $CABAL_OPTS && cabal v1-build && cabal v1-test
+          cabal v2-run spectests
