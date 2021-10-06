@@ -43,7 +43,7 @@ spec = do
       (r, e) <- hCapture [stderr] . E.try $ doctest ["--foo", "test/integration/test-options/Foo.hs"]
       e `shouldBe` Left (ExitFailure 1)
       r `shouldBe` unlines [
-          "doctest: Unknown command line arguments: [\"--foo\"]"
+          "doctest: Unknown command line argument: --foo"
         , "Try `doctest --help' for more information."
         ]
 

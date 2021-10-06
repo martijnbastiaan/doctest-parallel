@@ -55,10 +55,7 @@ mainFromLibrary lib (parseOptions -> opts) =
        hPutStrLn stderr ("doctest: " ++ s)
        hPutStrLn stderr "Try `doctest --help' for more information."
        exitFailure
-    Result (warnings, config) -> do
-      mapM_ (hPutStrLn stderr) warnings
-      hFlush stderr
-
+    Result config -> do
       r <- main lib config `E.catch` \e -> do
         case fromException e of
           Just (UsageError err) -> do
@@ -97,4 +94,4 @@ main lib Config{..} = do
   -- get examples from Haddock comments
   allModules <- getDocTests (includeArgs ++ moduleArgs ++ otherGhciArgs)
   let modules = filterModules cfgModules allModules
-  runModules cfgPreserveIt cfgVerbose implicitPrelude evalGhciArgs modules
+  runModules cfgThreads cfgPreserveIt cfgVerbose implicitPrelude evalGhciArgs modules

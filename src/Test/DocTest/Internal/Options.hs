@@ -7,10 +7,6 @@ module Test.DocTest.Internal.Options where
 import           Prelude ()
 import           Prelude.Compat
 
-import           Control.Monad.Trans.RWS (RWS, execRWS)
-import qualified Control.Monad.Trans.RWS as RWS
-
-import           Control.Monad (when)
 import           Data.List.Compat
 
 import qualified Paths_doctest_parallel
@@ -23,16 +19,18 @@ import           GHC.Settings.Config as GHC
 #endif
 
 import           Test.DocTest.Internal.Interpreter (ghc)
+import           Text.Read (readMaybe)
 
 usage :: String
 usage = unlines [
     "Usage:"
-  , "  doctest [ --fast | --preserve-it | --verbose ]..."
+  , "  doctest [ --fast | --preserve-it | --verbose | -jN ]..."
   , "  doctest --help"
   , "  doctest --version"
   , "  doctest --info"
   , ""
   , "Options:"
+  , "  -jN                      number of threads to use"
   , "  --preserve-it            preserve the `it` variable between examples"
   , "  --verbose                print each test as it is run"
   , "  --help                   display this help and exit"
@@ -63,7 +61,7 @@ info = "[ " ++ (intercalate "\n, " . map show $ [
 data Result a
   = ResultStderr String
   | ResultStdout String
-  | Result ([Warning], a)
+  | Result a
   deriving (Eq, Show, Functor)
 
 type Warning = String
@@ -76,6 +74,9 @@ data Config = Config
   -- ^ Verbose output (default: @False@)
   , cfgModules :: [ModuleName]
   -- ^ Module names to test
+  , cfgThreads :: Maybe Int
+  -- ^ Number of threads to use. Defaults to autodetection based on the number
+  -- of cores.
   } deriving (Show, Eq)
 
 defaultConfig :: Config
@@ -83,42 +84,28 @@ defaultConfig = Config
   { cfgPreserveIt = False
   , cfgVerbose = False
   , cfgModules = []
+  , cfgThreads = Nothing
   }
 
-isFlag :: String -> Bool
-isFlag ('-':_) = True
-isFlag _ = False
-
 parseOptions :: [String] -> Result Config
-parseOptions args
-  | "--help" `elem` args    = ResultStdout usage
-  | "--info" `elem` args    = ResultStdout info
-  | "--version" `elem` args = ResultStdout versionInfo
-  | otherwise =
-      case execRWS parse () (defaultConfig, args) of
-        ((config, extraArgs), warnings) ->
-          case partition isFlag extraArgs of
-            ([], mods) ->
-              Result (warnings, config{cfgModules=mods})
-            (unknownFlags, _mods) ->
-              ResultStderr ("Unknown command line arguments: " <> show unknownFlags)
-    where
-      parse :: RWS () [Warning] (Config, [String]) ()
-      parse = do
-        stripPreserveIt
-        stripVerbose
+parseOptions = go defaultConfig
+ where
+  go config [] = Result config
+  go config (arg:args) =
+    case arg of
+      "--help" -> ResultStdout usage
+      "--info" -> ResultStdout info
+      "--version" -> ResultStdout versionInfo
+      "--preserve-it" -> go config{cfgPreserveIt=True} args
+      "--verbose" -> go config{cfgVerbose=True} args
+      ('-':'j':n0) | Just n1 <- parseThreads n0 -> go config{cfgThreads=Just n1} args
+      ('-':_) -> ResultStderr ("Unknown command line argument: " <> arg)
+      mod_ -> go config{cfgModules=mod_ : cfgModules config} args
 
-stripPreserveIt :: RWS () [Warning] (Config, [String]) ()
-stripPreserveIt = stripFlag (\cfg -> cfg{cfgPreserveIt=True}) "--preserve-it"
-
-stripVerbose :: RWS () [Warning] (Config, [String]) ()
-stripVerbose = stripFlag (\cfg -> cfg{cfgVerbose=True}) "--verbose"
-
-stripFlag :: (Config -> Config) -> String -> RWS () [Warning] (Config, [String]) ()
-stripFlag setter flag = do
-  (cfg, args) <- RWS.get
-  when (flag `elem` args) $
-    RWS.put (setter cfg, filter (/= flag) args)
+parseThreads :: String -> Maybe Int
+parseThreads n0 = do
+  n1 <- readMaybe n0
+  if n1 > 0 then Just n1 else Nothing
 
 -- | Parse a flag into its flag and argument component.
 --

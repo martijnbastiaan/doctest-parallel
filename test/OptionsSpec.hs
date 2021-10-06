@@ -13,11 +13,11 @@ spec = do
     describe "--preserve-it" $ do
       context "without --preserve-it" $ do
         it "does not preserve the `it` variable" $ do
-          cfgPreserveIt <$> parseOptions [] `shouldBe` Result ([], False)
+          cfgPreserveIt <$> parseOptions [] `shouldBe` Result False
 
       context "with --preserve-it" $ do
         it "preserves the `it` variable" $ do
-          cfgPreserveIt <$> parseOptions ["--preserve-it"] `shouldBe` Result ([], True)
+          cfgPreserveIt <$> parseOptions ["--preserve-it"] `shouldBe` Result True
 
     context "with --help" $ do
       it "outputs usage information" $ do
@@ -34,8 +34,8 @@ spec = do
     describe "--verbose" $ do
       context "without --verbose" $ do
         it "is not verbose by default" $ do
-          cfgVerbose <$> parseOptions [] `shouldBe` Result ([], False)
+          cfgVerbose <$> parseOptions [] `shouldBe` Result False
 
       context "with --verbose" $ do
         it "parses verbose option" $ do
-          cfgVerbose <$> parseOptions ["--verbose"] `shouldBe` Result ([], True)
+          cfgVerbose <$> parseOptions ["--verbose"] `shouldBe` Result True

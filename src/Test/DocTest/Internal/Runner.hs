@@ -8,9 +8,11 @@ import           Prelude hiding (putStr, putStrLn, error)
 import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO)
 import           Control.Exception (SomeException, catch)
 import           Control.Monad hiding (forM_)
+import           Data.Maybe (fromMaybe)
 import           Text.Printf (printf)
 import           System.IO (hPutStrLn, hPutStr, stderr, hIsTerminalDevice)
 import           Data.Foldable (forM_)
+import           GHC.Conc (numCapabilities)
 
 import           Control.Monad.Trans.State
 import           Control.Monad.IO.Class
@@ -34,10 +36,10 @@ data FromSetup = FromSetup | NotFromSetup
 
 -- | Summary of a test run.
 data Summary = Summary {
-  sExamples :: Int
-, sTried    :: Int
-, sErrors   :: Int
-, sFailures :: Int
+    sExamples :: Int  -- ^ Total number of lines of examples (excluding setup)
+  , sTried    :: Int  -- ^ Executed /sTried/ lines so  far
+  , sErrors   :: Int  -- ^ Couldn't execute /sErrors/ examples
+  , sFailures :: Int  -- ^ Got unexpected output for /sFailures/ examples
 } deriving Eq
 
 -- | Format a summary.
@@ -59,7 +61,9 @@ instance Semigroup Summary where
 
 -- | Run all examples from a list of modules.
 runModules
-  :: Bool
+  :: Maybe Int
+  -- ^ Number of threads to use. Defaults to 'numCapabilities'.
+  -> Bool
   -- ^ Preserve it
   -> Bool
   -- ^ Verbose
@@ -70,11 +74,14 @@ runModules
   -> [Module [Located DocTest]]
   -- ^ Modules under test
   -> IO Summary
-runModules preserveIt verbose implicitPrelude args modules = do
+runModules nThreads preserveIt verbose implicitPrelude args modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
-  (input, output) <- makeThreadPool 24 (runModule preserveIt implicitPrelude args)
+  (input, output) <-
+    makeThreadPool
+      (fromMaybe numCapabilities nThreads)
+      (runModule preserveIt implicitPrelude args)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
