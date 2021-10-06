@@ -40,7 +40,7 @@ import Test.DocTest.Helpers
 --
 -- Example:
 --
--- doctest "clash-prelude" =<< getArgs
+-- mainFromCabal "my-project" =<< getArgs
 --
 mainFromCabal :: String -> [String] -> IO ()
 mainFromCabal libName cmdArgs = do

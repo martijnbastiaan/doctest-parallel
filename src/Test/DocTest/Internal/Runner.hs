@@ -255,23 +255,27 @@ reportError fromSetup loc expression err = do
   report ""
   updateSummary fromSetup (Summary 0 1 1 0)
 
-reportInternalError :: Module a -> SomeException -> Report ()
-reportInternalError mod_ err = do
+reportInternalError :: FromSetup -> Module a -> SomeException -> Report ()
+reportInternalError fs mod_ err = do
   report (printf "Internal error when executing tests in %s" (moduleName mod_))
   report (show err)
   report ""
+  updateSummary fs emptySummary{sErrors=1}
 
 reportImportError :: ModuleName -> Report ()
 reportImportError modName = do
   report ("Could not import module: " <> modName <> ". This can be caused by a number of issues: ")
   report ""
-  report " 1. For Cabal users: Cabal did not generate a GHC environment file. Either:"
+  report " 1. A module found by GHC contained tests, but was not in 'exposed-modules'."
+  report ""
+  report " 2. For Cabal users: Cabal did not generate a GHC environment file. Either:"
   report "   * Run with '--write-ghc-environment-files=always'"
   report "   * Add 'write-ghc-environment-files: always' to your cabal.project"
   report ""
-  report " 2. The testsuite executable does not have a dependency on your project library. Please add it to the 'build-depends' section of the testsuite executable."
+  report " 3. The testsuite executable does not have a dependency on your project library. Please add it to the 'build-depends' section of the testsuite executable."
   report ""
   report "See the example project at https://github.com/martijnbastiaan/doctest-parallel/tree/master/examples for more information."
+  updateSummary FromSetup emptySummary{sErrors=1}
 
 reportSuccess :: FromSetup -> Location -> Report ()
 reportSuccess fromSetup loc = do
