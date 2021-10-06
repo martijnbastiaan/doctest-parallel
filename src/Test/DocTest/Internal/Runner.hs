@@ -42,6 +42,9 @@ data Summary = Summary {
   , sFailures :: Int  -- ^ Got unexpected output for /sFailures/ examples
 } deriving Eq
 
+emptySummary :: Summary
+emptySummary = Summary 0 0 0 0
+
 -- | Format a summary.
 instance Show Summary where
   show (Summary examples tried errors failures) =
@@ -102,7 +105,7 @@ runModules nThreads preserveIt verbose implicitPrelude args modules = do
     update <- liftIO (readChan output)
     consumeUpdates output =<<
       case update of
-        UpdateInternalError loc e -> reportInternalError loc e >> pure (modsLeft - 1)
+        UpdateInternalError fs loc e -> reportInternalError fs loc e >> pure (modsLeft - 1)
         UpdateImportError modName -> reportImportError modName >> pure (modsLeft - 1)
         UpdateSuccess fs loc -> reportSuccess fs loc >> reportProgress >> pure modsLeft
         UpdateFailure fs loc expr errs -> reportFailure fs loc expr errs >> pure modsLeft
@@ -217,7 +220,7 @@ data ReportUpdate
   -- ^ All examples tested in module
   | UpdateStart Location Expression String
   -- ^ Indicate test has started executing (verbose output)
-  | UpdateInternalError (Module [Located DocTest]) SomeException
+  | UpdateInternalError FromSetup (Module [Located DocTest]) SomeException
   -- ^ Exception caught while executing internal code
   | UpdateImportError ModuleName
   -- ^ Could not import module
@@ -234,7 +237,7 @@ makeThreadPool nThreads mutator = do
       i <- readChan input
       catch
         (mutator output i)
-        (\e -> writeChan output (UpdateInternalError i e))
+        (\e -> writeChan output (UpdateInternalError NotFromSetup i e))
   return (input, output)
 
 reportStart :: Location -> Expression -> String -> Report ()
@@ -288,7 +291,9 @@ verboseReport xs = do
   when verbose $ report xs
 
 updateSummary :: FromSetup -> Summary -> Report ()
-updateSummary FromSetup _summary = return ()
+updateSummary FromSetup summary =
+  -- Suppress counts, except for errors
+  updateSummary NotFromSetup summary{sExamples=0, sTried=0, sFailures=0}
 updateSummary NotFromSetup summary = do
   ReportState n f v s <- get
   put (ReportState n f v $ s `mappend` summary)
