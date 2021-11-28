@@ -78,11 +78,11 @@ foo :: Int
 foo = 42
 ```
 
-Note that you should not place setup code inbetween the module header (`module
+Note that you should not place setup code in between the module header (`module
 ...  where`) and import declarations. GHC will not be able to parse it ([issue
  #167](https://github.com/sol/doctest/issues/167)). It is best to place setup
 code right after import declarations, but due to its declarative nature you can
-place it anywhere inbetween top level declarations as well.
+place it anywhere in between top level declarations as well.
 
 
 ## Multi-line input
@@ -296,6 +296,11 @@ This is a fork of [sol/doctest](https://github.com/sol/doctest) that allows runn
  * A minor change: it does not count lines in setup blocks as test cases
  * A minor change: the testsuite has been ported to v2 commands
 
+ There are two downsides to using this project:
+
+ * Examples in non-exposed modules cannot be tested (but will nonetheless be detected and consequently fail)
+ * Use of conditionals in a cabal file as well as CPP flags will be ignored (TODO?)
+
 All in all, you can expect `doctest-parallel` to run about 1 or 2 orders of magnitude faster than `doctest` for large projects.
 
 # Relation to [`cabal-docspec`](https://github.com/phadej/cabal-extras/tree/master/cabal-docspec)
@@ -318,6 +323,16 @@ To run the tests:
 cabal run spectests
 cabal run doctests
 ```
+
+# Future of this project
+
+ * It would be lovely if we could get rid of the needs for `write-ghc-environment-files: always` option for Cabal. To properly do this, I think Cabal should do two things:
+    1. Deprecate GHC environment files as a way to _implicitly_ setup environments. Instead, environment files should be written to the `dist-newstyle` directory and activated using some subcommand, e.g. `cabal shell`. This avoids the many problems GHC environment files have, while retaining their functionality for people who like them.
+    2. Any subcommands should be run with `GHC_ENVIRONMENT` set - pointing to the GHC environment file. Like Stack, this would create a hassle free way of using Cabal in combination with projects/executables that use the GHC API (e.g., `clash-ghc`, `doctest-parallel`).
+ * Cabal needs to expose more information _by default_ in order for `doctest-parallel` to properly work. Specifically, it needs to know the exact `default-extensions`, `ghc-options`, and `CPP` flags the project is compiled with. These options are obtainable by using a custom `Setup.hs`, but this has its own list of problems.
+ * Hopefully many of the improvements made here can make their way back into `sol/doctest`.
+
+ Of course, if you wish to add a feature that's not in this list, please feel free top open a pull request!
 
 # Contributors
 
