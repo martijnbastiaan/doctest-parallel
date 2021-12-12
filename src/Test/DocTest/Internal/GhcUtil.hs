@@ -42,8 +42,15 @@ handleStaticFlags flags = return $ map noLoc $ flags
 
 handleDynamicFlags :: GhcMonad m => [Located String] -> m [String]
 handleDynamicFlags flags = do
-  (dynflags, locSrcs, _) <- (setHaddockMode `fmap` getSessionDynFlags) >>= flip parseDynamicFlags flags
-  _ <- setSessionDynFlags dynflags
+#if __GLASGOW_HASKELL__ >= 901
+  logger <- getLogger
+  let parseDynamicFlags' = parseDynamicFlags logger
+#else
+  let parseDynamicFlags' = parseDynamicFlags
+#endif
+  dynflags0 <- setHaddockMode <$> getSessionDynFlags
+  (dynflags1, locSrcs, _) <- parseDynamicFlags' dynflags0 flags
+  _ <- setSessionDynFlags dynflags1
 
   -- We basically do the same thing as `ghc/Main.hs` to distinguish
   -- "unrecognised flags" from source files.
@@ -55,7 +62,11 @@ handleDynamicFlags flags = do
 
 setHaddockMode :: DynFlags -> DynFlags
 setHaddockMode dynflags = (gopt_set dynflags Opt_Haddock) {
+#if __GLASGOW_HASKELL__ >= 901
+      backend   = NoBackend
+#else
       hscTarget = HscNothing
+#endif
     , ghcMode   = CompManager
     , ghcLink   = NoLink
     }

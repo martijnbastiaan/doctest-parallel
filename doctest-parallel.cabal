@@ -91,7 +91,7 @@ library
     , directory
     , exceptions
     , filepath
-    , ghc >=8.4 && <9.1
+    , ghc >=8.4 && <9.3
     , ghc-paths >=0.1.0.9
     , pretty
     , process
@@ -188,7 +188,7 @@ test-suite spectests
     , directory
     , exceptions
     , filepath
-    , ghc >=8.4 && <9.1
+    , ghc
     , ghc-paths >=0.1.0.9
     , hspec >=2.3.0
     , hspec-core >=2.3.0
