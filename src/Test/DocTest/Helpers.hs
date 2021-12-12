@@ -21,18 +21,20 @@ import Data.Monoid ((<>))
 import Distribution.ModuleName (ModuleName)
 import Distribution.Simple
   ( Extension (DisableExtension, EnableExtension, UnknownExtension) )
+import Distribution.Types.UnqualComponentName ( unUnqualComponentName )
 import Distribution.PackageDescription
   ( CondTree(CondNode, condTreeData), GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription, condSubLibraries, unUnqualComponentName )
+  , packageDescription, condSubLibraries )
 import Distribution.Pretty (prettyShow)
+import Distribution.Verbosity (silent)
 
 #if MIN_VERSION_Cabal(3,6,0)
 import Distribution.Utils.Path (SourceDir, PackageDir, SymbolicPath)
 #endif
 
 -- cabal-install-parsers
-import Cabal.Package (readPackage)
+import Distribution.PackageDescription.Parsec (readGenericPackageDescription)
 
 data Library = Library
   { libSourceDirectories :: [FilePath]
@@ -117,7 +119,7 @@ compatPrettyShow = id
 -- a specific sublibrary.
 extractSpecificCabalLibrary :: Maybe String -> FilePath -> IO Library
 extractSpecificCabalLibrary maybeLibName pkgPath = do
-  pkg <- readPackage pkgPath
+  pkg <- readGenericPackageDescription silent pkgPath
   case maybeLibName of
     Nothing ->
       case condLibrary pkg of
