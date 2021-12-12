@@ -27,8 +27,34 @@ extra-source-files:
     example/example.cabal
     example/src/Example.hs
     example/test/doctests.hs
+    cabal.project
     CHANGES.markdown
     README.markdown
+
+    -- Rather annoyingly, Cabal implements arbitrary limitations in their file
+    -- globbing, one of them being that a wildcard can't be used to match
+    -- directories. Hence, we list them here individually.
+    test/extract/argument-list/*.hs
+    test/extract/comment-order/*.hs
+    test/extract/declaration/*.hs
+    test/extract/dos-line-endings/*.hs
+    test/extract/export-list/*.hs
+    test/extract/imported-module/*.hs
+    test/extract/module-header/*.hs
+    test/extract/named-chunks/*.hs
+    test/extract/regression/*.hs
+    test/extract/setup/*.hs
+    test/extract/th/*.hs
+    test/extract/type-class/*.hs
+    test/extract/type-class-args/*.hs
+    test/extract/type-families/*.hs
+    test/parse/multiple-examples/*.hs
+    test/parse/no-examples/*.hs
+    test/parse/non-exported/*.hs
+    test/parse/property/*.hs
+    test/parse/setup-empty/*.hs
+    test/parse/setup-only/*.hs
+    test/parse/simple/*.hs
 
 source-repository head
   type: git
