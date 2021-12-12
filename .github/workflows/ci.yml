@@ -7,13 +7,10 @@ jobs:
     name: Linux - GHC ${{ matrix.ghc }}
     runs-on: ubuntu-20.04
     container:
-      image: docker.pkg.github.com/martijnbastiaan/doctest-parallel/focal-ghc-${{ matrix.ghc }}:2021-10-03
-      credentials:
-        username: martijnbastiaan
-        password: ${{ secrets.READ_ONLY_DOCKER_TOKEN }}
+      image: ghcr.io/martijnbastiaan/focal-ghc-${{ matrix.ghc }}:2021-12-12
     strategy:
       matrix:
-        ghc: ["9.0.1", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
+        ghc: ["9.2.1", "9.0.1", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
       fail-fast: false
     steps:
       - name: Checkout

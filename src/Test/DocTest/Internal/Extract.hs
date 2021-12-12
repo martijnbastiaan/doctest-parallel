@@ -50,6 +50,10 @@ import           GHC.Runtime.Loader (initializePlugins)
 #endif
 #endif
 
+#if __GLASGOW_HASKELL__ >= 901
+import           GHC.Unit.Module.Graph
+#endif
+
 -- | A wrapper around `SomeException`, to allow for a custom `Show` instance.
 newtype ExtractError = ExtractError SomeException
   deriving Typeable
@@ -84,12 +88,6 @@ instance NFData a => NFData (Module a) where
 
 #if __GLASGOW_HASKELL__ < 803
 type GhcPs = RdrName
-
-needsTemplateHaskellOrQQ :: ModuleGraph -> Bool
-needsTemplateHaskellOrQQ = needsTemplateHaskell
-
-mapMG :: (ModSummary -> ModSummary) -> ModuleGraph -> ModuleGraph
-mapMG = map
 #endif
 
 #if __GLASGOW_HASKELL__ < 805
@@ -100,30 +98,21 @@ addQuoteInclude includes new = new ++ includes
 -- | Parse a list of modules.
 parse :: [String] -> IO [ParsedModule]
 parse args = withGhc args $ \modules -> withTempOutputDir $ do
-
-  mapM (`guessTarget` Nothing) modules >>= setTargets
+  setTargets =<< forM modules (\ m -> guessTarget m
+#if __GLASGOW_HASKELL__ >= 903
+                Nothing
+#endif
+                Nothing)
   mods <- depanal [] False
 
-  mods' <- if needsTemplateHaskellOrQQ mods then enableCompilation mods else return mods
-
-  let sortedMods = flattenSCCs (topSortModuleGraph False mods' Nothing)
-  reverse <$> mapM (loadModPlugins >=> parseModule) sortedMods
-  where
-    -- copied from Haddock/Interface.hs
-    enableCompilation :: ModuleGraph -> Ghc ModuleGraph
-    enableCompilation modGraph = do
-#if __GLASGOW_HASKELL__ < 809
-      let enableComp d = let platform = targetPlatform d
-                         in d { hscTarget = defaultObjectTarget platform }
-#else
-      let enableComp d = d { hscTarget = defaultObjectTarget d }
+  let sortedMods = flattenSCCs
+#if __GLASGOW_HASKELL__ >= 901
+                     $ filterToposortToModules
 #endif
-      modifySessionDynFlags enableComp
-      -- We need to update the DynFlags of the ModSummaries as well.
-      let upd m = m { ms_hspp_opts = enableComp (ms_hspp_opts m) }
-      let modGraph' = mapMG upd modGraph
-      return modGraph'
+                     $ topSortModuleGraph False mods Nothing
+  reverse <$> mapM (loadModPlugins >=> parseModule) sortedMods
 
+  where
     -- copied from Haddock/GhcUtils.hs
     modifySessionDynFlags :: (DynFlags -> DynFlags) -> Ghc ()
     modifySessionDynFlags f = do
@@ -161,12 +150,25 @@ parse args = withGhc args $ \modules -> withTempOutputDir $ do
       , includePaths = addQuoteInclude (includePaths d) [f]
       }
 
+
 #if __GLASGOW_HASKELL__ >= 806
     -- Since GHC 8.6, plugins are initialized on a per module basis
     loadModPlugins modsum = do
+      _ <- setSessionDynFlags (GHC.ms_hspp_opts modsum)
       hsc_env <- getSession
+
+# if __GLASGOW_HASKELL__ >= 903
+      hsc_env' <- liftIO (initializePlugins hsc_env Nothing)
+      setSession hsc_env'
+      return $ modsum
+# elif __GLASGOW_HASKELL__ >= 901
+      hsc_env' <- liftIO (initializePlugins hsc_env)
+      setSession hsc_env'
+      return $ modsum
+# else
       dynflags' <- liftIO (initializePlugins hsc_env (GHC.ms_hspp_opts modsum))
       return $ modsum { ms_hspp_opts = dynflags' }
+# endif
 #else
     loadModPlugins = return
 #endif
@@ -210,11 +212,15 @@ docStringsFromModule mod = map (fmap (toLocated . fmap unpackHDS)) docs
     -- traversing the whole source in a generic way, to ensure that we get
     -- everything in source order.
     header  = [(Nothing, x) | Just x <- [hsmodHaddockModHeader source]]
-#if __GLASGOW_HASKELL__ < 805
-    exports = [(Nothing, L loc doc) | L loc (IEDoc doc) <- maybe [] unLoc (hsmodExports source)]
+    exports = [ (Nothing, L (locA loc) doc)
+#if __GLASGOW_HASKELL__ < 710
+              | L loc (IEDoc doc) <- concat (hsmodExports source)
+#elif __GLASGOW_HASKELL__ < 805
+              | L loc (IEDoc doc) <- maybe [] unLoc (hsmodExports source)
 #else
-    exports = [(Nothing, L loc doc) | L loc (IEDoc _ doc) <- maybe [] unLoc (hsmodExports source)]
+              | L loc (IEDoc _ doc) <- maybe [] unLoc (hsmodExports source)
 #endif
+              ]
     decls   = extractDocStrings (hsmodDecls source)
 
 type Selector a = a -> ([(Maybe String, LHsDocString)], Bool)
@@ -237,15 +243,22 @@ extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
       -- no location information attached.  The location information is
       -- attached to HsDecl instead.
 #if __GLASGOW_HASKELL__ < 805
-      DocD x -> select (fromDocDecl loc x)
+      DocD x
 #else
-      DocD _ x -> select (fromDocDecl loc x)
+      DocD _ x
 #endif
+           -> select (fromDocDecl (locA loc) x)
 
       _ -> (extractDocStrings decl, True)
 
-    fromLDocDecl :: Selector LDocDecl
-    fromLDocDecl (L loc x) = select (fromDocDecl loc x)
+
+    fromLDocDecl :: Selector
+#if __GLASGOW_HASKELL__ >= 901
+                             (LDocDecl GhcPs)
+#else
+                             LDocDecl
+#endif
+    fromLDocDecl (L loc x) = select (fromDocDecl (locA loc) x)
 
     fromLHsDocString :: Selector LHsDocString
     fromLHsDocString x = select (Nothing, x)
@@ -259,4 +272,9 @@ extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
 -- | Convert a docstring to a plain string.
 unpackHDS :: HsDocString -> String
 unpackHDS (HsDocString s) = unpackFS s
+#endif
+
+#if __GLASGOW_HASKELL__ < 901
+locA :: SrcSpan -> SrcSpan
+locA = id
 #endif
