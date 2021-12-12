@@ -17,8 +17,7 @@ author:         Martijn Bastiaan <martijn@hmbastiaan.nl>
 maintainer:     Martijn Bastiaan <martijn@hmbastiaan.nl>
 build-type:     Simple
 tested-with:
-    GHC == 8.2.2
-  , GHC == 8.4.4
+    GHC == 8.4.4
   , GHC == 8.6.5
   , GHC == 8.8.4
   , GHC == 8.10.7
@@ -86,14 +85,13 @@ library
     , Glob
     , base >=4.10 && <5
     , base-compat >=0.7.0
-    , cabal-install-parsers
     , code-page >=0.1
     , containers
     , deepseq
     , directory
     , exceptions
     , filepath
-    , ghc >=7.10 && <9.1
+    , ghc >=8.4 && <9.1
     , ghc-paths >=0.1.0.9
     , pretty
     , process
@@ -190,7 +188,7 @@ test-suite spectests
     , directory
     , exceptions
     , filepath
-    , ghc >=7.0 && <9.1
+    , ghc >=8.4 && <9.1
     , ghc-paths >=0.1.0.9
     , hspec >=2.3.0
     , hspec-core >=2.3.0
