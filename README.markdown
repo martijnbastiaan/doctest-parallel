@@ -329,7 +329,8 @@ cabal run doctests
  * It would be lovely if we could get rid of the needs for `write-ghc-environment-files: always` option for Cabal. To properly do this, I think Cabal should do two things:
     1. Deprecate GHC environment files as a way to _implicitly_ setup environments. Instead, environment files should be written to the `dist-newstyle` directory and activated using some subcommand, e.g. `cabal shell`. This avoids the many problems GHC environment files have, while retaining their functionality for people who like them.
     2. Any subcommands should be run with `GHC_ENVIRONMENT` set - pointing to the GHC environment file. Like Stack, this would create a hassle free way of using Cabal in combination with projects/executables that use the GHC API (e.g., `clash-ghc`, `doctest-parallel`).
- * Cabal needs to expose more information _by default_ in order for `doctest-parallel` to properly work. Specifically, it needs to know the exact `default-extensions`, `ghc-options`, and `CPP` flags the project is compiled with. These options are obtainable by using a custom `Setup.hs`, but this has its own list of problems.
+ * It would be nice if Cabal would expose more information _by default_ (probably through auto-generated modules) in order for `doctest-parallel` to properly work. Specifically, it needs to know the exact `default-extensions`, `ghc-options`, and `CPP` flags the project is compiled with. These options are obtainable by using a custom `Setup.hs`, but this has its own list of problems.
+   * Alternatively, if comments could be included in and loaded from `.hi` files that'd solve all issues too.
  * Hopefully many of the improvements made here can make their way back into `sol/doctest`.
 
  Of course, if you wish to add a feature that's not in this list, please feel free top open a pull request!
