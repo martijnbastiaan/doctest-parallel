@@ -1,5 +1,6 @@
 # 0.2.1
   * C include directories (Cabal field: `include-dirs`) are now passed to GHC when parsing source files ([#7](https://github.com/martijnbastiaan/doctest-parallel/issues/7))
+  * A migration guide has been added under [#11](https://github.com/martijnbastiaan/doctest-parallel/issues/11)
 
 # 0.2
 Changes:

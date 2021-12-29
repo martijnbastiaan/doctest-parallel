@@ -6,6 +6,9 @@
 # Installation
 `doctest-parallel` is available from [Hackage](https://hackage.haskell.org/package/doctest-parallel). It cannot be used as a standalone binary, rather, it expects to be integrated in a Cabal/Stack project. See [examples/](example/README.md) for more information on how to integrate `doctest-parallel` into your project.
 
+# Migrating from `doctest`
+See [issue #11](https://github.com/martijnbastiaan/doctest-parallel/issues/11) for more information.
+
 # Usage
 Below is a small Haskell module. The module contains a Haddock comment with some examples of interaction. The examples demonstrate how the module is supposed to be used.
 
