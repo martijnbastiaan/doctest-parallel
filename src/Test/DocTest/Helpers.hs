@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
 
@@ -25,7 +24,7 @@ import Distribution.Types.UnqualComponentName ( unUnqualComponentName )
 import Distribution.PackageDescription
   ( CondTree(CondNode, condTreeData), GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription, condSubLibraries )
+  , packageDescription, condSubLibraries, includeDirs )
 import Distribution.Pretty (prettyShow)
 import Distribution.Verbosity (silent)
 
@@ -38,16 +37,22 @@ import Distribution.PackageDescription.Parsec (readGenericPackageDescription)
 
 data Library = Library
   { libSourceDirectories :: [FilePath]
+    -- ^ Haskell source directories
+  , libCSourceDirectories :: [FilePath]
+    -- ^ C source directories
   , libModules :: [ModuleName]
+    -- ^ Exposed modules
   , libDefaultExtensions :: [Extension]
+    -- ^ Extensions enabled by default
   }
   deriving (Show)
 
 -- | Convert a "Library" to arguments suitable to be passed to GHCi.
 libraryToGhciArgs :: Library -> ([String], [String], [String])
-libraryToGhciArgs Library{..} = (srcArgs, modArgs, extArgs)
+libraryToGhciArgs Library{..} = (hsSrcArgs <> cSrcArgs, modArgs, extArgs)
  where
-  srcArgs = map ("-i" <>) libSourceDirectories
+  hsSrcArgs = map ("-i" <>) libSourceDirectories
+  cSrcArgs = map ("-I" <>) libCSourceDirectories
   modArgs = map prettyShow libModules
   extArgs = map showExt libDefaultExtensions
 
@@ -144,10 +149,12 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
     let
       buildInfo = libBuildInfo lib
       sourceDirs = hsSourceDirs buildInfo
+      cSourceDirs = includeDirs buildInfo
       root = takeDirectory pkgPath
     in
       pure Library
         { libSourceDirectories = map ((root </>) . compatPrettyShow) sourceDirs
+        , libCSourceDirectories = map (root </>) cSourceDirs
         , libModules = exposedModules lib
         , libDefaultExtensions = defaultExtensions buildInfo
         }
