@@ -118,6 +118,8 @@ library spectests-modules
   -- ghc-options: -Wall
   hs-source-dirs:
       test/integration
+  include-dirs:
+      test/integration/WithCInclude/include
   c-sources:
       test/integration/WithCbits/foo.c
   exposed-modules:
@@ -157,6 +159,7 @@ library spectests-modules
     TestSimple.Fib
     TrailingWhitespace.Foo
     WithCbits.Bar
+    WithCInclude.Bar
 
 test-suite spectests
   main-is: Spec.hs
