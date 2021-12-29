@@ -160,3 +160,7 @@ spec = do
     it "doesn't get confused by doctests using System.IO imports" $ do
       doctest ["SystemIoImported.A"]
         (cases 2)
+
+    it "correctly handles C import directories" $ do
+      doctest ["WithCInclude.Bar"]
+        (cases 1)
