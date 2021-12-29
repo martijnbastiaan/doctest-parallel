@@ -277,7 +277,7 @@ reportImportError modName = do
   report ""
   report " 3. The testsuite executable does not have a dependency on your project library. Please add it to the 'build-depends' section of the testsuite executable."
   report ""
-  report "See the example project at https://github.com/martijnbastiaan/doctest-parallel/tree/master/examples for more information."
+  report "See the example project at https://github.com/martijnbastiaan/doctest-parallel/blob/main/example/README.md for more information."
   updateSummary FromSetup emptySummary{sErrors=1}
 
 reportSuccess :: FromSetup -> Location -> Report ()
