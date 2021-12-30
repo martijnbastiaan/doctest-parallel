@@ -3,7 +3,7 @@
   * A migration guide has been added ([#11](https://github.com/martijnbastiaan/doctest-parallel/issues/11))
   * Test order can be randomized using `--randomize-order`. Test order can be made deterministic by adding an optional `--seed=N` argument ([#12](https://github.com/martijnbastiaan/doctest-parallel/pull/12))
   * Any non-error output can now be surpressed by `--quiet` ([#20](https://github.com/martijnbastiaan/doctest-parallel/pull/20))
-  * Doctest can now be called using a record for option in addition to command line arguments. See `mainFromCabalWithConfig` and `mainFromLibraryWithConfig`.
+  * Doctest can now be called using a record for option passing in addition to command line arguments. See `mainFromCabalWithConfig` and `mainFromLibraryWithConfig`.
 
 # 0.2
 Changes:
