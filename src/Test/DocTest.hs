@@ -1,10 +1,19 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Test.DocTest where
+module Test.DocTest
+  ( mainFromCabal
+  , mainFromLibrary
+  , mainFromCabalWithConfig
+  , mainFromLibraryWithConfig
+
+  -- * Internal
+  , filterModules
+  , isSuccess
+  , run
+  ) where
 
 import           Prelude ()
 import           Prelude.Compat
@@ -40,13 +49,29 @@ import Test.DocTest.Helpers
 --
 -- Example:
 --
+-- @
 -- mainFromCabal "my-project" =<< getArgs
+-- @
 --
 mainFromCabal :: String -> [String] -> IO ()
 mainFromCabal libName cmdArgs = do
   lib <- extractCabalLibrary =<< findCabalPackage libName
   mainFromLibrary lib cmdArgs
 
+-- | Run doctest given config.
+--
+-- Example:
+--
+-- @
+-- mainFromCabal "my-project" defaultConfig
+-- @
+--
+mainFromCabalWithConfig :: String -> Config -> IO ()
+mainFromCabalWithConfig libName config = do
+  lib <- extractCabalLibrary =<< findCabalPackage libName
+  mainFromLibraryWithConfig lib config
+
+-- | Like 'mainFromCabal', but with a given library.
 mainFromLibrary :: Library -> [String] -> IO ()
 mainFromLibrary lib (parseOptions -> opts) =
   case opts of
@@ -56,14 +81,19 @@ mainFromLibrary lib (parseOptions -> opts) =
        hPutStrLn stderr "Try `doctest --help' for more information."
        exitFailure
     Result config -> do
-      r <- main lib config `E.catch` \e -> do
-        case fromException e of
-          Just (UsageError err) -> do
-            hPutStrLn stderr ("doctest: " ++ err)
-            hPutStrLn stderr "Try `doctest --help' for more information."
-            exitFailure
-          _ -> E.throwIO e
-      unless (isSuccess r) exitFailure
+      mainFromLibraryWithConfig lib config
+
+-- | Run doctests with given library and config.
+mainFromLibraryWithConfig :: Library -> Config -> IO ()
+mainFromLibraryWithConfig lib config = do
+  r <- run lib config `E.catch` \e -> do
+    case fromException e of
+      Just (UsageError err) -> do
+        hPutStrLn stderr ("doctest: " ++ err)
+        hPutStrLn stderr "Try `doctest --help' for more information."
+        exitFailure
+      _ -> E.throwIO e
+  unless (isSuccess r) exitFailure
 
 isSuccess :: Summary -> Bool
 isSuccess s = sErrors s == 0 && sFailures s == 0
@@ -83,9 +113,9 @@ filterModules wantedMods0 allMods0
   nonExistingMods = Set.toList (wantedMods1 `Set.difference` allMods1)
   isSpecifiedMod Module{moduleName} = moduleName `Set.member` wantedMods1
 
-
-main :: Library -> Config -> IO Summary
-main lib Config{..} = do
+-- | Run doctest for given library and config. Produce a summary of all tests.
+run :: Library -> Config -> IO Summary
+run lib Config{..} = do
   let
     implicitPrelude = DisableExtension ImplicitPrelude `notElem` libDefaultExtensions lib
     (includeArgs, moduleArgs, otherGhciArgs) = libraryToGhciArgs lib

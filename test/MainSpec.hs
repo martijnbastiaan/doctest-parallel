@@ -24,7 +24,7 @@ doctestWithOpts config modNames expected = do
   lib <- extractSpecificCabalLibrary (Just "spectests-modules") pkg
   actual <-
     hSilence [stderr] $
-      DocTest.main lib config{cfgModules=modNames}
+      DocTest.run lib config{cfgModules=modNames}
   assertEqual (show modNames) expected actual
 
 cases :: Int -> Summary
