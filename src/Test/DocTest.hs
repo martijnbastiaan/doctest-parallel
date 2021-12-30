@@ -12,6 +12,7 @@ module Test.DocTest
   -- * Internal
   , filterModules
   , isSuccess
+  , getSeed
   , run
   ) where
 
@@ -23,6 +24,7 @@ import qualified Data.Set as Set
 import           Control.Monad (unless)
 import           System.Exit (exitFailure)
 import           System.IO
+import           System.Random (randomIO)
 
 import qualified Control.Exception as E
 
@@ -113,6 +115,15 @@ filterModules wantedMods0 allMods0
   nonExistingMods = Set.toList (wantedMods1 `Set.difference` allMods1)
   isSpecifiedMod Module{moduleName} = moduleName `Set.member` wantedMods1
 
+getSeed :: Bool -> Maybe Int -> IO (Maybe Int)
+getSeed False _ = pure Nothing
+getSeed True (Just seed) = pure (Just seed)
+getSeed True Nothing = do
+  -- Using an abslute number to prevent copy+paste errors
+  seed <- abs <$> randomIO
+  putStrLn ("Using freshly generated seed to randomize test order: " <> show seed)
+  pure (Just seed)
+
 -- | Run doctest for given library and config. Produce a summary of all tests.
 run :: Library -> Config -> IO Summary
 run lib Config{..} = do
@@ -121,7 +132,10 @@ run lib Config{..} = do
     (includeArgs, moduleArgs, otherGhciArgs) = libraryToGhciArgs lib
     evalGhciArgs = otherGhciArgs ++ ["-XNoImplicitPrelude"]
 
+  seed <- getSeed cfgRandomizeOrder cfgSeed
+
   -- get examples from Haddock comments
   allModules <- getDocTests (includeArgs ++ moduleArgs ++ otherGhciArgs)
-  let modules = filterModules cfgModules allModules
-  runModules cfgThreads cfgPreserveIt cfgVerbose implicitPrelude evalGhciArgs modules
+  runModules
+    cfgThreads cfgPreserveIt cfgVerbose seed implicitPrelude evalGhciArgs
+    (filterModules cfgModules allModules)

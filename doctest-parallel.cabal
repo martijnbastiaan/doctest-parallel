@@ -97,6 +97,7 @@ library
     , ghc-paths >=0.1.0.9
     , pretty
     , process
+    , random >= 1.2
     , syb >=0.3
     , transformers
     , unordered-containers

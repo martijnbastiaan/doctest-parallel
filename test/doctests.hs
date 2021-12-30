@@ -4,4 +4,6 @@ import Test.DocTest (mainFromCabal)
 import System.Environment (getArgs)
 
 main :: IO ()
-main = mainFromCabal "doctest-parallel" =<< getArgs
+main = do
+  args <- getArgs
+  mainFromCabal "doctest-parallel" ("--randomize-order":args)

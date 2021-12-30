@@ -24,13 +24,15 @@ import           Text.Read (readMaybe)
 usage :: String
 usage = unlines [
     "Usage:"
-  , "  doctest [ --fast | --preserve-it | --verbose | -jN ]... [<module>]..."
+  , "  doctest [ options ]... [<module>]..."
   , "  doctest --help"
   , "  doctest --version"
   , "  doctest --info"
   , ""
   , "Options:"
   , "  -jN                      number of threads to use"
+  , "  --randomize-order        randomize order in which tests are run"
+  , "  --seed                   use a specific seed to randomize test order"
   , "  --preserve-it            preserve the `it` variable between examples"
   , "  --verbose                print each test as it is run"
   , "  --help                   display this help and exit"
@@ -77,6 +79,12 @@ data Config = Config
   , cfgThreads :: Maybe Int
   -- ^ Number of threads to use. Defaults to autodetection based on the number
   -- of cores.
+  , cfgRandomizeOrder :: Bool
+  -- ^ Randomize the order in which test cases in a module are run (default: @False@)
+  , cfgSeed :: Maybe Int
+  -- ^ Initialize random number generator used to randomize test cases when
+  -- 'cfgRandomizeOrder' is set. If set to 'Nothing', a random seed is picked
+  -- from a system RNG source on startup.
   } deriving (Show, Eq)
 
 defaultConfig :: Config
@@ -85,6 +93,8 @@ defaultConfig = Config
   , cfgVerbose = False
   , cfgModules = []
   , cfgThreads = Nothing
+  , cfgRandomizeOrder = False
+  , cfgSeed = Nothing
   }
 
 parseOptions :: [String] -> Result Config
@@ -96,16 +106,55 @@ parseOptions = go defaultConfig
       "--help" -> ResultStdout usage
       "--info" -> ResultStdout info
       "--version" -> ResultStdout versionInfo
+      "--randomize-order" -> go config{cfgRandomizeOrder=True} args
       "--preserve-it" -> go config{cfgPreserveIt=True} args
       "--verbose" -> go config{cfgVerbose=True} args
-      ('-':'j':n0) | Just n1 <- parseThreads n0 -> go config{cfgThreads=Just n1} args
+      ('-':_) | Just n <- parseSeed arg -> go config{cfgSeed=Just n} args
+      ('-':_) | Just n <- parseThreads arg -> go config{cfgThreads=Just n} args
       ('-':_) -> ResultStderr ("Unknown command line argument: " <> arg)
       mod_ -> go config{cfgModules=mod_ : cfgModules config} args
 
+-- | Parse seed argument
+--
+-- >>> parseSeed "--seed=6"
+-- Just 6
+-- >>> parseSeed "--seeeed=6"
+-- Nothing
+--
+parseSeed :: String -> Maybe Int
+parseSeed arg = readMaybe =<< parseSpecificFlag arg "seed"
+
+
+-- | Parse number of threads argument
+--
+-- >>> parseThreads "-j6"
+-- Just 6
+-- >>> parseThreads "-j-2"
+-- Nothing
+-- >>> parseThreads "-jA"
+-- Nothing
+--
 parseThreads :: String -> Maybe Int
-parseThreads n0 = do
+parseThreads ('-':'j':n0) = do
   n1 <- readMaybe n0
   if n1 > 0 then Just n1 else Nothing
+parseThreads _ = Nothing
+
+-- | Parse a specific flag with a value, or return 'Nothing'
+--
+-- >>> parseSpecificFlag "--foo" "foo"
+-- Nothing
+-- >>> parseSpecificFlag "--foo=" "foo"
+-- Nothing
+-- >>> parseSpecificFlag "--foo=5" "foo"
+-- Just "5"
+-- >>> parseSpecificFlag "--foo=5" "bar"
+-- Nothing
+parseSpecificFlag :: String -> String -> Maybe String
+parseSpecificFlag arg flag = do
+  case parseFlag arg of
+    ('-':'-':f, value) | f == flag -> value
+    _ -> Nothing
 
 -- | Parse a flag into its flag and argument component.
 --
@@ -121,5 +170,5 @@ parseFlag :: String -> (String, Maybe String)
 parseFlag arg =
   case break (== '=') arg of
     (flag, ['=']) -> (flag, Nothing)
-    (flag, ('=':opt)) -> (flag, Just opt)
+    (flag, '=':opt) -> (flag, Just opt)
     (flag, _) -> (flag, Nothing)
