@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.DocTest.Internal.Runner where
 
@@ -8,11 +9,14 @@ import           Prelude hiding (putStr, putStrLn, error)
 import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO)
 import           Control.Exception (SomeException, catch)
 import           Control.Monad hiding (forM_)
-import           Data.Maybe (fromMaybe)
-import           Text.Printf (printf)
-import           System.IO (hPutStrLn, hPutStr, stderr, hIsTerminalDevice)
 import           Data.Foldable (forM_)
+import           Data.Function (on)
+import           Data.List (sortBy)
+import           Data.Maybe (fromMaybe)
 import           GHC.Conc (numCapabilities)
+import           System.IO (hPutStrLn, hPutStr, stderr, hIsTerminalDevice)
+import           System.Random (randoms, mkStdGen)
+import           Text.Printf (printf)
 
 import           Control.Monad.Trans.State
 import           Control.Monad.IO.Class
@@ -70,6 +74,8 @@ runModules
   -- ^ Preserve it
   -> Bool
   -- ^ Verbose
+  -> Maybe Int
+  -- ^ If 'Just', use seed to randomize test order
   -> Bool
   -- ^ Implicit Prelude
   -> [String]
@@ -77,14 +83,14 @@ runModules
   -> [Module [Located DocTest]]
   -- ^ Modules under test
   -> IO Summary
-runModules nThreads preserveIt verbose implicitPrelude args modules = do
+runModules nThreads preserveIt verbose seed implicitPrelude args modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
   (input, output) <-
     makeThreadPool
       (fromMaybe numCapabilities nThreads)
-      (runModule preserveIt implicitPrelude args)
+      (runModule preserveIt seed implicitPrelude args)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
@@ -156,15 +162,27 @@ overwrite msg = do
           | otherwise = msg
   liftIO (hPutStr stderr str)
 
+-- | Shuffle a list given a seed for an RNG
+shuffle :: Int -> [a] -> [a]
+shuffle seed xs =
+    map snd
+  $ sortBy (compare `on` fst)
+  $ zip (randoms @Int (mkStdGen seed)) xs
+
 -- | Run all examples from given module.
 runModule
   :: Bool
+  -> Maybe Int
   -> Bool
   -> [String]
   -> Chan ReportUpdate
   -> Module [Located DocTest]
   -> IO ()
-runModule preserveIt implicitPrelude ghciArgs output (Module module_ setup examples) = do
+runModule preserveIt (Just seed) implicitPrelude ghciArgs output (Module module_ setup examples) = do
+  runModule
+    preserveIt Nothing implicitPrelude ghciArgs output
+    (Module module_ setup (shuffle seed examples))
+runModule preserveIt Nothing implicitPrelude ghciArgs output (Module module_ setup examples) = do
   Interpreter.withInterpreter ghciArgs $ \repl -> withCP65001 $ do
     -- Try to import this module, if it fails, something is off
     importResult <- Interpreter.safeEval repl importModule
