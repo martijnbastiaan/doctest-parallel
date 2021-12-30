@@ -115,13 +115,22 @@ filterModules wantedMods0 allMods0
   nonExistingMods = Set.toList (wantedMods1 `Set.difference` allMods1)
   isSpecifiedMod Module{moduleName} = moduleName `Set.member` wantedMods1
 
-getSeed :: Bool -> Maybe Int -> IO (Maybe Int)
-getSeed False _ = pure Nothing
-getSeed True (Just seed) = pure (Just seed)
-getSeed True Nothing = do
+getSeed
+  :: Bool
+  -- ^ Whether quiet mode is enabled
+  -> Bool
+  -- ^ Enable order randomization. If 'False', this function always returns 'Nothing'
+  -> Maybe Int
+  -- ^ User supplied seed. If 'Nothing', a fresh seed will be generated.
+  -> IO (Maybe Int)
+  -- ^ Maybe seed to use for order randomization.
+getSeed _quiet False _ = pure Nothing
+getSeed _quiet True (Just seed) = pure (Just seed)
+getSeed quiet True Nothing = do
   -- Using an abslute number to prevent copy+paste errors
   seed <- abs <$> randomIO
-  putStrLn ("Using freshly generated seed to randomize test order: " <> show seed)
+  unless quiet $
+    putStrLn ("Using freshly generated seed to randomize test order: " <> show seed)
   pure (Just seed)
 
 -- | Run doctest for given library and config. Produce a summary of all tests.
@@ -132,10 +141,10 @@ run lib Config{..} = do
     (includeArgs, moduleArgs, otherGhciArgs) = libraryToGhciArgs lib
     evalGhciArgs = otherGhciArgs ++ ["-XNoImplicitPrelude"]
 
-  seed <- getSeed cfgRandomizeOrder cfgSeed
+  seed <- getSeed cfgQuiet cfgRandomizeOrder cfgSeed
 
   -- get examples from Haddock comments
   allModules <- getDocTests (includeArgs ++ moduleArgs ++ otherGhciArgs)
   runModules
     cfgThreads cfgPreserveIt cfgVerbose seed implicitPrelude evalGhciArgs
-    (filterModules cfgModules allModules)
+    cfgQuiet (filterModules cfgModules allModules)

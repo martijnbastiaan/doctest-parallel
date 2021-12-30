@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Test.DocTest.Internal.Runner where
 
@@ -80,10 +81,12 @@ runModules
   -- ^ Implicit Prelude
   -> [String]
   -- ^ Arguments passed to the GHCi process.
+  -> Bool
+  -- ^ Quiet mode activated
   -> [Module [Located DocTest]]
   -- ^ Modules under test
   -> IO Summary
-runModules nThreads preserveIt verbose seed implicitPrelude args modules = do
+runModules nThreads preserveIt verbose seed implicitPrelude args quiet modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
@@ -97,14 +100,21 @@ runModules nThreads preserveIt verbose seed implicitPrelude args modules = do
 
   let
     nExamples = (sum . map count) modules
-    initState = ReportState 0 isInteractive verbose mempty {sExamples = nExamples}
+    initState = ReportState
+      { reportStateCount = 0
+      , reportStateInteractive = isInteractive
+      , reportStateVerbose = verbose
+      , reportStateQuiet = quiet
+      , reportStateSummary = mempty{sExamples=nExamples}
+      }
 
-  ReportState _ _ _ s <- (`execStateT` initState) $ do
+  ReportState{reportStateSummary} <- (`execStateT` initState) $ do
     consumeUpdates output (length modules)
-    verboseReport "# Final summary:"
-    gets (show . reportStateSummary) >>= report
+    unless quiet $ do
+      verboseReport "# Final summary:"
+      gets (show . reportStateSummary) >>= report
 
-  return s
+  return reportStateSummary
  where
   consumeUpdates _output 0 = pure ()
   consumeUpdates output modsLeft = do
@@ -131,6 +141,7 @@ data ReportState = ReportState {
   reportStateCount        :: Int     -- ^ characters on the current line
 , reportStateInteractive  :: Bool    -- ^ should intermediate results be printed?
 , reportStateVerbose      :: Bool
+, reportStateQuiet        :: Bool
 , reportStateSummary      :: Summary -- ^ test summary
 }
 
@@ -260,7 +271,10 @@ makeThreadPool nThreads mutator = do
 
 reportStart :: Location -> Expression -> String -> Report ()
 reportStart loc expression testType = do
-  verboseReport (printf "### Started execution at %s.\n### %s:\n%s" (show loc) testType expression)
+  quiet <- gets reportStateQuiet
+  unless quiet $
+    verboseReport
+      (printf "### Started execution at %s.\n### %s:\n%s" (show loc) testType expression)
 
 reportFailure :: FromSetup -> Location -> Expression -> [String] -> Report ()
 reportFailure fromSetup loc expression err = do
@@ -300,26 +314,34 @@ reportImportError modName = do
 
 reportSuccess :: FromSetup -> Location -> Report ()
 reportSuccess fromSetup loc = do
-  verboseReport (printf "### Successful `%s'!\n" (show loc))
+  quiet <- gets reportStateQuiet
+  unless quiet $
+    verboseReport (printf "### Successful `%s'!\n" (show loc))
   updateSummary fromSetup (Summary 0 1 0 0)
 
 verboseReport :: String -> Report ()
 verboseReport xs = do
   verbose <- gets reportStateVerbose
-  when verbose $ report xs
+  quiet <- gets reportStateQuiet
+  unless quiet $
+    when verbose $
+      report xs
 
 updateSummary :: FromSetup -> Summary -> Report ()
 updateSummary FromSetup summary =
   -- Suppress counts, except for errors
   updateSummary NotFromSetup summary{sExamples=0, sTried=0, sFailures=0}
 updateSummary NotFromSetup summary = do
-  ReportState n f v s <- get
-  put (ReportState n f v $ s `mappend` summary)
+  ReportState n f v q s <- get
+  put (ReportState n f v q $ s `mappend` summary)
 
 reportProgress :: Report ()
 reportProgress = do
   verbose <- gets reportStateVerbose
-  when (not verbose) $ gets (show . reportStateSummary) >>= report_
+  quiet <- gets reportStateQuiet
+  unless quiet $
+    unless verbose $
+      gets (show . reportStateSummary) >>= report_
 
 -- | Run given test group.
 --

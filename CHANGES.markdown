@@ -2,6 +2,7 @@
   * C include directories (Cabal field: `include-dirs`) are now passed to GHC when parsing source files ([#7](https://github.com/martijnbastiaan/doctest-parallel/issues/7))
   * A migration guide has been added under [#11](https://github.com/martijnbastiaan/doctest-parallel/issues/11)
   * Test order can be randomized using `--randomize-order`. Test order can be made deterministic by adding an optional `--seed=N` argument. Implemented in [#12](https://github.com/martijnbastiaan/doctest-parallel/pull/12)
+  * Any non-error output can now be surpressed by `--quiet` [#20](https://github.com/martijnbastiaan/doctest-parallel/pull/20)
 
 # 0.2
 Changes:
