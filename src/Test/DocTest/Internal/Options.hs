@@ -35,6 +35,7 @@ usage = unlines [
   , "  --seed                   use a specific seed to randomize test order"
   , "  --preserve-it            preserve the `it` variable between examples"
   , "  --verbose                print each test as it is run"
+  , "  --quiet                  only print errors"
   , "  --help                   display this help and exit"
   , "  --version                output version information and exit"
   , "  --info                   output machine-readable version information and exit"
@@ -85,6 +86,8 @@ data Config = Config
   -- ^ Initialize random number generator used to randomize test cases when
   -- 'cfgRandomizeOrder' is set. If set to 'Nothing', a random seed is picked
   -- from a system RNG source on startup.
+  , cfgQuiet :: Bool
+  -- ^ Only print error messages, no status or progress messages (default: @False@)
   } deriving (Show, Eq)
 
 defaultConfig :: Config
@@ -95,6 +98,7 @@ defaultConfig = Config
   , cfgThreads = Nothing
   , cfgRandomizeOrder = False
   , cfgSeed = Nothing
+  , cfgQuiet = False
   }
 
 parseOptions :: [String] -> Result Config
@@ -109,6 +113,7 @@ parseOptions = go defaultConfig
       "--randomize-order" -> go config{cfgRandomizeOrder=True} args
       "--preserve-it" -> go config{cfgPreserveIt=True} args
       "--verbose" -> go config{cfgVerbose=True} args
+      "--quiet" -> go config{cfgQuiet=True} args
       ('-':_) | Just n <- parseSeed arg -> go config{cfgSeed=Just n} args
       ('-':_) | Just n <- parseThreads arg -> go config{cfgThreads=Just n} args
       ('-':_) -> ResultStderr ("Unknown command line argument: " <> arg)
