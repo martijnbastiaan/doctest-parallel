@@ -24,7 +24,7 @@ import           Text.Read (readMaybe)
 usage :: String
 usage = unlines [
     "Usage:"
-  , "  doctest [ --fast | --preserve-it | --verbose | -jN ]..."
+  , "  doctest [ --fast | --preserve-it | --verbose | -jN ]... [<module>]..."
   , "  doctest --help"
   , "  doctest --version"
   , "  doctest --info"
@@ -73,7 +73,7 @@ data Config = Config
   , cfgVerbose :: Bool
   -- ^ Verbose output (default: @False@)
   , cfgModules :: [ModuleName]
-  -- ^ Module names to test
+  -- ^ Module names to test. An empty list means "test all modules".
   , cfgThreads :: Maybe Int
   -- ^ Number of threads to use. Defaults to autodetection based on the number
   -- of cores.
