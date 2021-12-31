@@ -307,7 +307,12 @@ reportImportError modName = do
   report "   * Run with '--write-ghc-environment-files=always'"
   report "   * Add 'write-ghc-environment-files: always' to your cabal.project"
   report ""
-  report " 3. The testsuite executable does not have a dependency on your project library. Please add it to the 'build-depends' section of the testsuite executable."
+  report " 3. For Cabal users: Cabal did not generate a GHC environment file in time. This"
+  report "    can happen if you use 'cabal test' instead of 'cabal run doctests'. See"
+  report "    https://github.com/martijnbastiaan/doctest-parallel/issues/22."
+  report ""
+  report " 4. The testsuite executable does not have a dependency on your project library. Please"
+  report "    add it to the 'build-depends' section of the testsuite executable."
   report ""
   report "See the example project at https://github.com/martijnbastiaan/doctest-parallel/blob/main/example/README.md for more information."
   updateSummary FromSetup emptySummary{sErrors=1}
