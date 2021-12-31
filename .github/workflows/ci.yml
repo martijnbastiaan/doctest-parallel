@@ -75,3 +75,10 @@ jobs:
       - name: Test - spectests
         run: |
           cabal v2-run spectests
+
+      - name: Test - example project
+        run: |
+          cd example
+          # See: https://github.com/martijnbastiaan/doctest-parallel/issues/22
+          # cabal v2-test
+          cabal v2-run doctests
