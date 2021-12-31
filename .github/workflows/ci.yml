@@ -1,10 +1,47 @@
 name: doctest-parallel-ci
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - master
+  pull_request:
 jobs:
-  linux:
-    name: Linux - GHC ${{ matrix.ghc }}
+  # Stack
+  stack:
+    name: Linux - Stack - LTS 18.20
+    runs-on: ubuntu-20.04
+    container:
+      image: ghcr.io/martijnbastiaan/focal-ghc-8.10.7:2021-12-12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.stack
+          key: ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ github.ref }}-${{ github.sha }}
+            ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ github.ref }}-
+            ${{ runner.os }}-ghc-${{ matrix.ghc }}-
+
+      # See: https://github.com/commercialhaskell/stack/issues/2187
+      - name: Permissions bug workaround
+        run: "chown -R $(id -un):$(id -gn) ~"
+
+      # Ask Stack to use system GHC instead of installing its own copy
+      - name: Use system GHC
+        run: |
+          stack config set system-ghc --global true
+
+      - name: Test example project
+        run: |
+          cd example
+          stack test
+
+  # Cabal
+  cabal:
+    name: Linux - Cabal - GHC ${{ matrix.ghc }}
     runs-on: ubuntu-20.04
     container:
       image: ghcr.io/martijnbastiaan/focal-ghc-${{ matrix.ghc }}:2021-12-12
