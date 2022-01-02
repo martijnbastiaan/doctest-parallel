@@ -46,11 +46,7 @@ Execute:
 cabal run doctests -- arg1 arg2
 ```
 
-It will also be executed alongside your tests:
-
-```
-cabal test --enable-tests
-```
+**At the moment, using `cabal test` is not reliable. See [#22](https://github.com/martijnbastiaan/doctest-parallel/issues/22).**
 
 ## Stack
 Stack users can use:
