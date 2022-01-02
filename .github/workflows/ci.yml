@@ -27,14 +27,23 @@ jobs:
 
       # See: https://github.com/commercialhaskell/stack/issues/2187
       - name: Permissions bug workaround
-        run: "chown -R $(id -un):$(id -gn) ~"
+        run: |
+          chown -R $(id -un):$(id -gn) ~ .
 
       # Ask Stack to use system GHC instead of installing its own copy
       - name: Use system GHC
         run: |
           stack config set system-ghc --global true
 
-      - name: Test example project
+      - name: Test - doctests
+        run : |
+          stack test doctest-parallel:doctests
+
+      - name: Test - spectests
+        run : |
+          stack test doctest-parallel:spectests
+
+      - name: Test - example project
         run: |
           cd example
           stack test
