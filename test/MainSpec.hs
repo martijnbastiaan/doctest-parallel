@@ -7,10 +7,12 @@ module MainSpec (main, spec) where
 import           Test.Hspec
 import           Test.HUnit (assertEqual, Assertion)
 
+import qualified Data.Map as Map
 import qualified Test.DocTest as DocTest
 import           Test.DocTest.Helpers (extractSpecificCabalLibrary, findCabalPackage)
 import           Test.DocTest.Internal.Options
 import           Test.DocTest.Internal.Runner
+import           System.Environment (getEnvironment)
 import           System.IO.Silently
 import           System.IO
 
@@ -35,7 +37,17 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  describe "doctest" $ do
+  env <- runIO getEnvironment
+  let
+    cDescribe =
+      -- Don't run doctests as part of the Stack testsuite yet, pending
+      -- https://github.com/commercialhaskell/stack/issues/5662
+      if "STACK_EXE" `Map.member` Map.fromList env then
+        xdescribe
+      else
+        describe
+
+  cDescribe "doctest" $ do
     it "testSimple" $
       doctest ["TestSimple.Fib"]
         (cases 1)
@@ -109,7 +121,7 @@ spec = do
       doctest ["TrailingWhitespace.Foo"]
         (cases 1)
 
-  describe "doctest as a runner for QuickCheck properties" $ do
+  cDescribe "doctest as a runner for QuickCheck properties" $ do
     it "runs a boolean property" $ do
       doctest ["PropertyBool.Foo"]
         (cases 1)
@@ -134,12 +146,12 @@ spec = do
       doctest ["PropertySetup.Foo"]
         (cases 1)
 
-  describe "doctest (module isolation)" $ do
+  cDescribe "doctest (module isolation)" $ do
     it "should fail due to module isolation" $ do
       doctestWithOpts defaultConfig ["ModuleIsolation.TestA", "ModuleIsolation.TestB"]
         (cases 2) {sFailures = 1}
 
-  describe "doctest (regression tests)" $ do
+  cDescribe "doctest (regression tests)" $ do
     it "bugfixOutputToStdErr" $ do
       doctest ["BugfixOutputToStdErr.Fib"]
         (cases 2)
