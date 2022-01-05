@@ -35,6 +35,7 @@ usage = unlines [
   , ""
   , "Options:"
   , "   -jN                      number of threads to use"
+  , "†  --implicit-module-import import module before testing it (default)"
   , "†  --randomize-order        randomize order in which tests are run"
   , "†  --seed=N                 use a specific seed to randomize test order"
   , "†  --preserve-it            preserve the `it` variable between examples"
@@ -45,6 +46,7 @@ usage = unlines [
   , "   --info                   output machine-readable version information and exit"
   , ""
   , "Supported inverted options:"
+  , "†  --no-implicit-module-import"
   , "†  --no-randomize-order (default)"
   , "†  --no-preserve-it (default)"
   , ""
@@ -107,6 +109,9 @@ data ModuleConfig = ModuleConfig
   -- ^ Initialize random number generator used to randomize test cases when
   -- 'cfgRandomizeOrder' is set. If set to 'Nothing', a random seed is picked
   -- from a system RNG source on startup.
+  , cfgImplicitModuleImport :: Bool
+  -- ^ Import a module before testing it. Can be disabled to enabled to test
+  -- non-exposed modules.
   } deriving (Show, Eq, Generic, NFData)
 
 defaultModuleConfig :: ModuleConfig
@@ -114,6 +119,7 @@ defaultModuleConfig = ModuleConfig
   { cfgPreserveIt = False
   , cfgRandomizeOrder = False
   , cfgSeed = Nothing
+  , cfgImplicitModuleImport = True
   }
 
 defaultConfig :: Config
@@ -145,6 +151,8 @@ parseModuleOption config arg =
     "--no-randomize-order" -> Just config{cfgRandomizeOrder=False}
     "--preserve-it" -> Just config{cfgPreserveIt=True}
     "--no-preserve-it" -> Just config{cfgPreserveIt=False}
+    "--implicit-module-import" -> Just config{cfgImplicitModuleImport=True}
+    "--no-implicit-module-import" -> Just config{cfgImplicitModuleImport=False}
     ('-':_) | Just n <- parseSeed arg -> Just config{cfgSeed=Just n}
     _ -> Nothing
 

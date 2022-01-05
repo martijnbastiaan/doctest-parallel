@@ -81,6 +81,7 @@ Usage:
 
 Options:
    -jN                      number of threads to use
+†  --implicit-module-import import module before testing it (default)
 †  --randomize-order        randomize order in which tests are run
 †  --seed=N                 use a specific seed to randomize test order
 †  --preserve-it            preserve the `it` variable between examples
@@ -91,6 +92,7 @@ Options:
    --info                   output machine-readable version information and exit
 
 Supported inverted options:
+†  --no-implicit-module-import
 †  --no-randomize-order (default)
 †  --no-preserve-it (default)
 

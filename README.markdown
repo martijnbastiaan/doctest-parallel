@@ -293,7 +293,22 @@ You _hide_ the import of `Prelude` by using:
 You can override command line flags per module by using a module annotation. For example, if you know a specific module does not support test order randomization, you can disable it with:
 
 ```haskell
-{-# ANN module "--no-randomize-order" #-}
+{-# ANN module "doctest-parallel: --no-randomize-order" #-}
+```
+
+## Test non-exposed modules
+Generally, `doctest-parallel` cannot test binders that are part of non-exposed modules, unless they are re-exported from exposed modules. By default `doctest-parallel` will fail to do so (and report an error message), because it doesn't track whether functions are re-exported in such a way. To test a re-exported function, add the following to the _non-exposed_ module:
+
+```haskell
+{-# ANN module "doctest-parallel: --no-implicit-module-import" #-}
+```
+
+This makes `doctest-parallel` omit the usual module import at the start of a test.
+
+Then, before a test -or in `$setup`- add:
+
+```haskell
+>>> import Exposed.Module (someFunction)
 ```
 
 
@@ -307,9 +322,8 @@ This is a fork of [sol/doctest](https://github.com/sol/doctest) that allows runn
  * A minor change: it does not count lines in setup blocks as test cases
  * A minor change: the testsuite has been ported to v2 commands
 
- There are two downsides to using this project:
+AFAIK there's only one downside to using this project:
 
- * Examples in non-exposed modules cannot be tested (but will nonetheless be detected and consequently fail)
  * Use of conditionals in a cabal file as well as CPP flags will be ignored (TODO?)
 
 All in all, you can expect `doctest-parallel` to run about 1 or 2 orders of magnitude faster than `doctest` for large projects.
