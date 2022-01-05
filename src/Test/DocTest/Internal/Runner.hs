@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
@@ -25,9 +24,12 @@ import           Control.Monad.IO.Class
 import           Test.DocTest.Internal.Interpreter (Interpreter)
 import qualified Test.DocTest.Internal.Interpreter as Interpreter
 import           Test.DocTest.Internal.Parse
-import           Test.DocTest.Internal.Options (ModuleName)
+import           Test.DocTest.Internal.Options
+  ( ModuleName, ModuleConfig (cfgPreserveIt), cfgSeed, cfgPreserveIt
+  , cfgRandomizeOrder, parseLocatedModuleOptions)
 import           Test.DocTest.Internal.Location
-import           Test.DocTest.Internal.Property
+import Test.DocTest.Internal.Property
+    ( runProperty, PropertyResult(Failure, Success, Error) )
 import           Test.DocTest.Internal.Runner.Example
 
 import           System.IO.CodePage (withCP65001)
@@ -69,14 +71,12 @@ instance Semigroup Summary where
 
 -- | Run all examples from a list of modules.
 runModules
-  :: Maybe Int
+  :: ModuleConfig
+  -- ^ Configuration options specific to module
+  -> Maybe Int
   -- ^ Number of threads to use. Defaults to 'numCapabilities'.
   -> Bool
-  -- ^ Preserve it
-  -> Bool
   -- ^ Verbose
-  -> Maybe Int
-  -- ^ If 'Just', use seed to randomize test order
   -> Bool
   -- ^ Implicit Prelude
   -> [String]
@@ -86,14 +86,14 @@ runModules
   -> [Module [Located DocTest]]
   -- ^ Modules under test
   -> IO Summary
-runModules nThreads preserveIt verbose seed implicitPrelude args quiet modules = do
+runModules modConfig nThreads verbose implicitPrelude args quiet modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
   (input, output) <-
     makeThreadPool
       (fromMaybe numCapabilities nThreads)
-      (runModule preserveIt seed implicitPrelude args)
+      (runModule modConfig implicitPrelude args)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
@@ -126,13 +126,14 @@ runModules nThreads preserveIt verbose seed implicitPrelude args quiet modules =
         UpdateSuccess fs loc -> reportSuccess fs loc >> reportProgress >> pure modsLeft
         UpdateFailure fs loc expr errs -> reportFailure fs loc expr errs >> pure modsLeft
         UpdateError fs loc expr err -> reportError fs loc expr err >> pure modsLeft
+        UpdateOptionError loc err -> reportOptionError loc err >> pure modsLeft
         UpdateVerbose msg -> verboseReport msg >> pure modsLeft
         UpdateStart loc expr msg -> reportStart loc expr msg >> pure modsLeft
         UpdateModuleDone -> pure (modsLeft - 1)
 
 -- | Count number of expressions in given module.
 count :: Module [Located DocTest] -> Int
-count (Module _ _ tests) = sum (map length tests)
+count (Module _ _ tests _) = sum (map length tests)
 
 -- | A monad for generating test reports.
 type Report = StateT ReportState IO
@@ -182,59 +183,75 @@ shuffle seed xs =
 
 -- | Run all examples from given module.
 runModule
-  :: Bool
-  -> Maybe Int
+  :: ModuleConfig
   -> Bool
   -> [String]
   -> Chan ReportUpdate
   -> Module [Located DocTest]
   -> IO ()
-runModule preserveIt (Just seed) implicitPrelude ghciArgs output (Module module_ setup examples) = do
-  runModule
-    preserveIt Nothing implicitPrelude ghciArgs output
-    (Module module_ setup (shuffle seed examples))
-runModule preserveIt Nothing implicitPrelude ghciArgs output (Module module_ setup examples) = do
-  Interpreter.withInterpreter ghciArgs $ \repl -> withCP65001 $ do
-    -- Try to import this module, if it fails, something is off
-    importResult <- Interpreter.safeEval repl importModule
-    case importResult of
-      Right "" -> do
-        -- Run setup group
-        successes <- mapM (runTestGroup FromSetup preserveIt repl (reload repl) output) setup
+runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
+  case modConfig2 of
+    Left (loc, flag) ->
+      writeChan output (UpdateOptionError loc flag)
 
-        -- only run tests, if setup does not produce any errors/failures
-        when
-          (and successes)
-          (mapM_ (runTestGroup NotFromSetup preserveIt repl (setup_ repl) output) examples)
-      _ ->
-        writeChan output (UpdateImportError module_)
+    Right modConfig3 -> do
+      let
+        examples1
+          | cfgRandomizeOrder modConfig3 = shuffle seed examples0
+          | otherwise = examples0
 
-    -- Signal main thread a module has been tested
-    writeChan output UpdateModuleDone
+        preserveIt = cfgPreserveIt modConfig3
+        seed = fromMaybe 0 (cfgSeed modConfig3) -- Should have been set already
 
-    pure ()
+        reload repl = do
+          void $ Interpreter.safeEval repl ":reload"
+          mapM_ (Interpreter.safeEval repl) $
+            if implicitPrelude
+            then [":m Prelude", importModule]
+            else [":m +" ++ module_]
 
-  where
-    importModule = ":m +" ++ module_
+          when preserveIt $
+            -- Evaluate a dumb expression to populate the 'it' variable NOTE: This is
+            -- one reason why we cannot have safeEval = safeEvalIt: 'it' isn't set in
+            -- a fresh GHCi session.
+            void $ Interpreter.safeEval repl $ "()"
 
-    reload repl = do
-      void $ Interpreter.safeEval repl ":reload"
-      mapM_ (Interpreter.safeEval repl) $
-        if implicitPrelude
-        then [":m Prelude", importModule]
-        else [":m +" ++ module_]
+        setup_ repl = do
+          reload repl
+          forM_ setup $ \l -> forM_ l $ \(Located _ x) -> case x of
+            Property _  -> return ()
+            Example e _ -> void $ safeEvalWith preserveIt repl e
 
-      when preserveIt $
-        -- Evaluate a dumb expression to populate the 'it' variable NOTE: This is
-        -- one reason why we cannot have safeEval = safeEvalIt: 'it' isn't set in
-        -- a fresh GHCi session.
-        void $ Interpreter.safeEval repl $ "()"
 
-    setup_ repl = do
-      reload repl
-      forM_ setup $ \l -> forM_ l $ \(Located _ x) -> case x of
-        Property _  -> return ()
-        Example e _ -> void $ safeEvalWith preserveIt repl e
+      Interpreter.withInterpreter ghciArgs $ \repl -> withCP65001 $ do
+        -- Try to import this module, if it fails, something is off
+        importResult <- Interpreter.safeEval repl importModule
+        case importResult of
+          Right "" -> do
+            -- Run setup group
+            successes <-
+              mapM
+                (runTestGroup FromSetup preserveIt repl (reload repl) output)
+                setup
+
+            -- only run tests, if setup does not produce any errors/failures
+            when
+              (and successes)
+              (mapM_
+                (runTestGroup NotFromSetup preserveIt repl (setup_ repl) output)
+                examples1)
+          _ ->
+            writeChan output (UpdateImportError module_)
+
+  -- Signal main thread a module has been tested
+  writeChan output UpdateModuleDone
+
+  pure ()
+
+ where
+  Module module_ setup examples0 modArgs = mod_
+  modConfig2 = parseLocatedModuleOptions module_ modConfig0 modArgs
+  importModule = ":m +" ++ module_
 
 data ReportUpdate
   = UpdateSuccess FromSetup Location
@@ -253,6 +270,8 @@ data ReportUpdate
   -- ^ Exception caught while executing internal code
   | UpdateImportError ModuleName
   -- ^ Could not import module
+  | UpdateOptionError Location String
+  -- ^ Unrecognized flag in module specific option
 
 makeThreadPool ::
   Int ->
@@ -289,6 +308,12 @@ reportError fromSetup loc expression err = do
   report err
   report ""
   updateSummary fromSetup (Summary 0 1 1 0)
+
+reportOptionError :: Location -> String -> Report ()
+reportOptionError loc opt = do
+  report (printf "%s: unrecognized option: %s. Try --help to see all options." (show loc) opt)
+  report ""
+  updateSummary FromSetup (Summary 0 1 1 0)
 
 reportInternalError :: FromSetup -> Module a -> SomeException -> Report ()
 reportInternalError fs mod_ err = do

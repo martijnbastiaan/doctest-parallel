@@ -1,13 +1,16 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Test.DocTest.Internal.Options where
 
 import           Prelude ()
 import           Prelude.Compat
 
+import           Control.DeepSeq (NFData)
 import           Data.List.Compat
+import           GHC.Generics (Generic)
 
 import qualified Paths_doctest_parallel
 import           Data.Version (showVersion)
@@ -18,6 +21,7 @@ import           Config as GHC
 import           GHC.Settings.Config as GHC
 #endif
 
+import           Test.DocTest.Internal.Location (Located (Located), Location)
 import           Test.DocTest.Internal.Interpreter (ghc)
 import           Text.Read (readMaybe)
 
@@ -30,15 +34,25 @@ usage = unlines [
   , "  doctest --info"
   , ""
   , "Options:"
-  , "  -jN                      number of threads to use"
-  , "  --randomize-order        randomize order in which tests are run"
-  , "  --seed                   use a specific seed to randomize test order"
-  , "  --preserve-it            preserve the `it` variable between examples"
-  , "  --verbose                print each test as it is run"
-  , "  --quiet                  only print errors"
-  , "  --help                   display this help and exit"
-  , "  --version                output version information and exit"
-  , "  --info                   output machine-readable version information and exit"
+  , "   -jN                      number of threads to use"
+  , "†  --randomize-order        randomize order in which tests are run"
+  , "†  --seed=N                 use a specific seed to randomize test order"
+  , "†  --preserve-it            preserve the `it` variable between examples"
+  , "   --verbose                print each test as it is run"
+  , "   --quiet                  only print errors"
+  , "   --help                   display this help and exit"
+  , "   --version                output version information and exit"
+  , "   --info                   output machine-readable version information and exit"
+  , ""
+  , "Supported inverted options:"
+  , "†  --no-randomize-order (default)"
+  , "†  --no-preserve-it (default)"
+  , ""
+  , "Options marked with a dagger (†) can also be used to set module level options, using"
+  , "an ANN pragma like this:"
+  , ""
+  , "  {-# ANN module \"doctest-parallel: --no-randomize-order\" #-} "
+  , ""
   ]
 
 version :: String
@@ -71,35 +85,68 @@ type Warning = String
 type ModuleName = String
 
 data Config = Config
-  { cfgPreserveIt :: Bool
-  -- ^ Preserve the @it@ variable between examples (default: @False@)
-  , cfgVerbose :: Bool
+  { cfgVerbose :: Bool
   -- ^ Verbose output (default: @False@)
   , cfgModules :: [ModuleName]
   -- ^ Module names to test. An empty list means "test all modules".
   , cfgThreads :: Maybe Int
   -- ^ Number of threads to use. Defaults to autodetection based on the number
   -- of cores.
+  , cfgQuiet :: Bool
+  -- ^ Only print error messages, no status or progress messages (default: @False@)
+  , cfgModuleConfig :: ModuleConfig
+  -- ^ Options specific to modules
+  } deriving (Show, Eq, Generic, NFData)
+
+data ModuleConfig = ModuleConfig
+  { cfgPreserveIt :: Bool
+  -- ^ Preserve the @it@ variable between examples (default: @False@)
   , cfgRandomizeOrder :: Bool
   -- ^ Randomize the order in which test cases in a module are run (default: @False@)
   , cfgSeed :: Maybe Int
   -- ^ Initialize random number generator used to randomize test cases when
   -- 'cfgRandomizeOrder' is set. If set to 'Nothing', a random seed is picked
   -- from a system RNG source on startup.
-  , cfgQuiet :: Bool
-  -- ^ Only print error messages, no status or progress messages (default: @False@)
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic, NFData)
+
+defaultModuleConfig :: ModuleConfig
+defaultModuleConfig = ModuleConfig
+  { cfgPreserveIt = False
+  , cfgRandomizeOrder = False
+  , cfgSeed = Nothing
+  }
 
 defaultConfig :: Config
 defaultConfig = Config
-  { cfgPreserveIt = False
-  , cfgVerbose = False
+  { cfgVerbose = False
   , cfgModules = []
   , cfgThreads = Nothing
-  , cfgRandomizeOrder = False
-  , cfgSeed = Nothing
   , cfgQuiet = False
+  , cfgModuleConfig = defaultModuleConfig
   }
+
+parseLocatedModuleOptions ::
+  ModuleName ->
+  ModuleConfig ->
+  [Located String] ->
+  Either (Location, String) ModuleConfig
+parseLocatedModuleOptions _modName modConfig [] = Right modConfig
+parseLocatedModuleOptions modName modConfig0 (Located loc o:os) =
+  case parseModuleOption modConfig0 o of
+    Nothing ->
+      Left (loc, o)
+    Just modConfig1 ->
+      parseLocatedModuleOptions modName modConfig1 os
+
+parseModuleOption :: ModuleConfig -> String -> Maybe ModuleConfig
+parseModuleOption config arg =
+  case arg of
+    "--randomize-order" -> Just config{cfgRandomizeOrder=True}
+    "--no-randomize-order" -> Just config{cfgRandomizeOrder=False}
+    "--preserve-it" -> Just config{cfgPreserveIt=True}
+    "--no-preserve-it" -> Just config{cfgPreserveIt=False}
+    ('-':_) | Just n <- parseSeed arg -> Just config{cfgSeed=Just n}
+    _ -> Nothing
 
 parseOptions :: [String] -> Result Config
 parseOptions = go defaultConfig
@@ -110,12 +157,13 @@ parseOptions = go defaultConfig
       "--help" -> ResultStdout usage
       "--info" -> ResultStdout info
       "--version" -> ResultStdout versionInfo
-      "--randomize-order" -> go config{cfgRandomizeOrder=True} args
-      "--preserve-it" -> go config{cfgPreserveIt=True} args
       "--verbose" -> go config{cfgVerbose=True} args
       "--quiet" -> go config{cfgQuiet=True} args
-      ('-':_) | Just n <- parseSeed arg -> go config{cfgSeed=Just n} args
       ('-':_) | Just n <- parseThreads arg -> go config{cfgThreads=Just n} args
+      ('-':_)
+        -- Module specific configuration options
+        | Just modCfg <- parseModuleOption (cfgModuleConfig config) arg
+       -> go config{cfgModuleConfig=modCfg} args
       ('-':_) -> ResultStderr ("Unknown command line argument: " <> arg)
       mod_ -> go config{cfgModules=mod_ : cfgModules config} args
 

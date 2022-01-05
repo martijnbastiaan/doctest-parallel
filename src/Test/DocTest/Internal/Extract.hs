@@ -1,21 +1,33 @@
-{-# LANGUAGE CPP, DeriveDataTypeable, DeriveFunctor #-}
-module Test.DocTest.Internal.Extract (Module(..), extract) where
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
+
+module Test.DocTest.Internal.Extract (Module(..), extract, eraseConfigLocation) where
 
 import           Prelude hiding (mod, concat)
 import           Control.Monad
 import           Control.Exception
-import           Data.List (partition)
+import           Data.List (partition, isPrefixOf)
+import           Data.List.Extra (trim)
 import           Data.Maybe
 
-import           Control.DeepSeq (deepseq, NFData(rnf))
-import           Data.Generics
+import           Control.DeepSeq (NFData, deepseq)
+import           Data.Generics (Data, Typeable, extQ, mkQ, everythingBut)
+
+import qualified GHC
 
 #if __GLASGOW_HASKELL__ < 900
-import           GHC hiding (Module, Located)
+import           GHC hiding (Module, Located, moduleName)
 import           DynFlags
 import           MonadUtils (liftIO)
 #else
-import           GHC hiding (Module, Located)
+import           GHC hiding (Module, Located, moduleName)
 import           GHC.Driver.Session
 import           GHC.Utils.Monad (liftIO)
 #endif
@@ -32,8 +44,15 @@ import           Control.Monad.Catch (generalBracket)
 import           System.Directory
 import           System.FilePath
 
-#if __GLASGOW_HASKELL__ < 805
+#if __GLASGOW_HASKELL__ < 900
+import           BasicTypes (SourceText(SourceText))
 import           FastString (unpackFS)
+#elif __GLASGOW_HASKELL__ < 902
+import           GHC.Data.FastString (unpackFS)
+import           GHC.Types.Basic (SourceText(SourceText))
+#else
+import           GHC.Data.FastString (unpackFS)
+import           GHC.Types.SourceText (SourceText(SourceText))
 #endif
 
 import           System.Posix.Internals (c_getpid)
@@ -53,6 +72,9 @@ import           GHC.Runtime.Loader (initializePlugins)
 #if __GLASGOW_HASKELL__ >= 901
 import           GHC.Unit.Module.Graph
 #endif
+
+import           GHC.Generics (Generic)
+
 
 -- | A wrapper around `SomeException`, to allow for a custom `Show` instance.
 newtype ExtractError = ExtractError SomeException
@@ -81,10 +103,14 @@ data Module a = Module {
   moduleName    :: String
 , moduleSetup   :: Maybe a
 , moduleContent :: [a]
-} deriving (Eq, Functor, Show)
+, moduleConfig  :: [Located String]
+} deriving (Eq, Functor, Show, Generic, NFData)
 
-instance NFData a => NFData (Module a) where
-  rnf (Module name setup content) = name `deepseq` setup `deepseq` content `deepseq` ()
+eraseConfigLocation :: Module a -> Module a
+eraseConfigLocation m@Module{moduleConfig} =
+  m{moduleConfig=map go moduleConfig}
+ where
+  go (Located _ a) = noLocation a
 
 #if __GLASGOW_HASKELL__ < 803
 type GhcPs = RdrName
@@ -193,41 +219,100 @@ extract args = do
 
 -- | Extract all docstrings from given module and attach the modules name.
 extractFromModule :: ParsedModule -> Module (Located String)
-extractFromModule m = Module name (listToMaybe $ map snd setup) (map snd docs)
-  where
-    isSetup = (== Just "setup") . fst
-    (setup, docs) = partition isSetup (docStringsFromModule m)
-    name = (moduleNameString . GHC.moduleName . ms_mod . pm_mod_summary) m
+extractFromModule m = Module
+  { moduleName = name
+  , moduleSetup = listToMaybe (map snd setup)
+  , moduleContent = map snd docs
+  , moduleConfig = moduleAnnsFromModule m
+  }
+ where
+  isSetup = (== Just "setup") . fst
+  (setup, docs) = partition isSetup (docStringsFromModule m)
+  name = (moduleNameString . GHC.moduleName . ms_mod . pm_mod_summary) m
+
+-- | Extract all module annotations from given module.
+moduleAnnsFromModule :: ParsedModule -> [Located String]
+moduleAnnsFromModule mod =
+  [fmap stripOptionString ann | ann <- anns, isOption ann]
+ where
+  optionPrefix = "doctest-parallel:"
+  isOption (Located _ s) = optionPrefix `isPrefixOf` s
+  stripOptionString s = trim (drop (length optionPrefix) s)
+  anns = extractModuleAnns source
+  source = (unLoc . pm_parsed_source) mod
 
 -- | Extract all docstrings from given module.
 docStringsFromModule :: ParsedModule -> [(Maybe String, Located String)]
-docStringsFromModule mod = map (fmap (toLocated . fmap unpackHDS)) docs
-  where
-    source   = (unLoc . pm_parsed_source) mod
+docStringsFromModule mod =
+  map (fmap (toLocated . fmap unpackHDS)) docs
+ where
+  source   = (unLoc . pm_parsed_source) mod
 
-    -- we use dlist-style concatenation here
-    docs     = header ++ exports ++ decls
+  -- we use dlist-style concatenation here
+  docs     = header ++ exports ++ decls
 
-    -- We process header, exports and declarations separately instead of
-    -- traversing the whole source in a generic way, to ensure that we get
-    -- everything in source order.
-    header  = [(Nothing, x) | Just x <- [hsmodHaddockModHeader source]]
-    exports = [ (Nothing, L (locA loc) doc)
+  -- We process header, exports and declarations separately instead of
+  -- traversing the whole source in a generic way, to ensure that we get
+  -- everything in source order.
+  header  = [(Nothing, x) | Just x <- [hsmodHaddockModHeader source]]
+  exports = [ (Nothing, L (locA loc) doc)
 #if __GLASGOW_HASKELL__ < 710
-              | L loc (IEDoc doc) <- concat (hsmodExports source)
+            | L loc (IEDoc doc) <- concat (hsmodExports source)
 #elif __GLASGOW_HASKELL__ < 805
-              | L loc (IEDoc doc) <- maybe [] unLoc (hsmodExports source)
+            | L loc (IEDoc doc) <- maybe [] unLoc (hsmodExports source)
 #else
-              | L loc (IEDoc _ doc) <- maybe [] unLoc (hsmodExports source)
+            | L loc (IEDoc _ doc) <- maybe [] unLoc (hsmodExports source)
 #endif
-              ]
-    decls   = extractDocStrings (hsmodDecls source)
+            ]
+  decls   = extractDocStrings (hsmodDecls source)
 
-type Selector a = a -> ([(Maybe String, LHsDocString)], Bool)
+type Selector b a = a -> ([b], Bool)
+
+type DocSelector a = Selector (Maybe String, LHsDocString) a
+type AnnSelector a = Selector (Located String) a
 
 -- | Collect given value and descend into subtree.
 select :: a -> ([a], Bool)
 select x = ([x], False)
+
+-- | Extract module annotations from given value.
+extractModuleAnns :: Data a => a -> [Located String]
+extractModuleAnns = everythingBut (++) (([], False) `mkQ` fromLHsDecl)
+ where
+  fromLHsDecl :: AnnSelector (LHsDecl GhcPs)
+  fromLHsDecl (L (locA -> loc) decl) = case decl of
+#if __GLASGOW_HASKELL__ < 805
+    AnnD (HsAnnotation (SourceText _) ModuleAnnProvenance (L _loc expr))
+#else
+    AnnD _ (HsAnnotation _ (SourceText _) ModuleAnnProvenance (L _loc expr))
+#endif
+     | Just s <- extractLit loc expr
+     -> select s
+    _ ->
+      -- XXX: Shouldn't this be handled by 'everythingBut'?
+      (extractModuleAnns decl, True)
+
+-- | Extract string literals. Looks through type annotations and parentheses.
+extractLit :: SrcSpan -> HsExpr GhcPs -> Maybe (Located String)
+extractLit loc = \case
+  -- well this is a holy mess innit
+#if __GLASGOW_HASKELL__ < 805
+  HsPar (L l e) -> extractLit l e
+  ExprWithTySig (L l e) _ -> extractLit l e
+  HsOverLit OverLit{ol_val=HsIsString _ s} -> Just (toLocated (L loc (unpackFS s)))
+  HsLit (HsString _ s) -> Just (toLocated (L loc (unpackFS s)))
+  _ -> Nothing
+#else
+  HsPar _ (L l e) -> extractLit (locA l) e
+#if __GLASGOW_HASKELL__ < 807
+  ExprWithTySig _ (L l e) -> extractLit l e
+#else
+  ExprWithTySig _ (L l e) _ -> extractLit (locA l) e
+#endif
+  HsOverLit _ OverLit{ol_val=HsIsString _ s} -> Just (toLocated (L loc (unpackFS s)))
+  HsLit _ (HsString _ s) -> Just (toLocated (L loc (unpackFS s)))
+  _ -> Nothing
+#endif
 
 -- | Extract all docstrings from given value.
 extractDocStrings :: Data a => a -> [(Maybe String, LHsDocString)]
@@ -236,7 +321,7 @@ extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
   `extQ` fromLHsDocString
   )
   where
-    fromLHsDecl :: Selector (LHsDecl GhcPs)
+    fromLHsDecl :: DocSelector (LHsDecl GhcPs)
     fromLHsDecl (L loc decl) = case decl of
 
       -- Top-level documentation has to be treated separately, because it has
@@ -252,7 +337,7 @@ extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
       _ -> (extractDocStrings decl, True)
 
 
-    fromLDocDecl :: Selector
+    fromLDocDecl :: DocSelector
 #if __GLASGOW_HASKELL__ >= 901
                              (LDocDecl GhcPs)
 #else
@@ -260,7 +345,7 @@ extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
 #endif
     fromLDocDecl (L loc x) = select (fromDocDecl (locA loc) x)
 
-    fromLHsDocString :: Selector LHsDocString
+    fromLHsDocString :: DocSelector LHsDocString
     fromLHsDocString x = select (Nothing, x)
 
     fromDocDecl :: SrcSpan -> DocDecl -> (Maybe String, LHsDocString)

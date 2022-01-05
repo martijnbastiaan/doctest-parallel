@@ -56,17 +56,19 @@ getDocTests args = parseModules <$> extract args
 
 parseModules :: [Module (Located String)] -> [Module [Located DocTest]]
 parseModules = filter (not . isEmpty) . map parseModule
-  where
-    isEmpty (Module _ setup tests) = null tests && isNothing setup
+ where
+  isEmpty (Module _ setup tests _) = null tests && isNothing setup
 
 -- | Convert documentation to `Example`s.
 parseModule :: Module (Located String) -> Module [Located DocTest]
-parseModule m = case parseComment <$> m of
-  Module name setup tests -> Module name setup_ (filter (not . null) tests)
-    where
-      setup_ = case setup of
-        Just [] -> Nothing
-        _       -> setup
+parseModule m =
+  case parseComment <$> m of
+    Module name setup tests cfg ->
+      Module name setup_ (filter (not . null) tests) cfg
+      where
+        setup_ = case setup of
+          Just [] -> Nothing
+          _       -> setup
 
 parseComment :: Located String -> [Located DocTest]
 parseComment c = properties ++ examples

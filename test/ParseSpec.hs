@@ -22,7 +22,7 @@ prop_ :: Expression -> Writer [DocTest] ()
 prop_ e = tell [Property e]
 
 module_ :: String -> Writer [[DocTest]] () -> Writer [Module [DocTest]] ()
-module_ name gs = tell [Module name Nothing $ execWriter gs]
+module_ name gs = tell [Module name Nothing (execWriter gs) []]
 
 shouldGive :: IO [Module [Located DocTest]] -> Writer [Module [DocTest]] () -> Expectation
 shouldGive action expected = map (fmap $ map unLoc) `fmap` action `shouldReturn` execWriter expected
@@ -82,7 +82,7 @@ spec = do
 
     it "keeps modules that only contain setup code" $ do
       getDocTests ["test/parse/setup-only/Foo.hs"] `shouldGive` do
-        tell [Module "Foo" (Just [Example "foo" ["23"]]) []]
+        tell [Module "Foo" (Just [Example "foo" ["23"]]) [] []]
 
   describe "parseInteractions (an internal function)" $ do
 

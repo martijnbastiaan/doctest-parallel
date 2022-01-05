@@ -289,6 +289,14 @@ You _hide_ the import of `Prelude` by using:
 -- >>> :m -Prelude
 ```
 
+## Per module options
+You can override command line flags per module by using a module annotation. For example, if you know a specific module does not support test order randomization, you can disabled it with:
+
+```haskell
+{-# ANN module "--no-randomize-order" #-}
+```
+
+
 # Relation to [`doctest`](https://github.com/sol/doctest)
 This is a fork of [sol/doctest](https://github.com/sol/doctest) that allows running tests in parallel and aims to provide a more robust project integration method. It is not backwards compatible and expects to be setup differently. At the time of writing it has a few advantages over the base project:
 

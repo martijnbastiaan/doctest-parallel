@@ -1,3 +1,6 @@
+# dev
+  * Command line arguments (such as `--randomize-order`) can now be overridden on a per-module basis ([25](https://github.com/martijnbastiaan/doctest-parallel/pull/25))
+
 # 0.2.1
   * C include directories (Cabal field: `include-dirs`) are now passed to GHC when parsing source files ([#7](https://github.com/martijnbastiaan/doctest-parallel/issues/7))
   * A migration guide has been added ([#11](https://github.com/martijnbastiaan/doctest-parallel/issues/11))
