@@ -142,6 +142,7 @@ library spectests-modules
     ModuleIsolation.TestA
     ModuleIsolation.TestB
     ModuleOptions.Foo
+    NonExposedModule.Exposed
     Multiline.Multiline
     PropertyBool.Foo
     PropertyBoolWithTypeSignature.Foo
@@ -165,6 +166,8 @@ library spectests-modules
     TrailingWhitespace.Foo
     WithCbits.Bar
     WithCInclude.Bar
+  other-modules:
+    NonExposedModule.NoImplicitImport
 
 test-suite spectests
   main-is: Spec.hs

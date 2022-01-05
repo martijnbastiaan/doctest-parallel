@@ -180,3 +180,7 @@ spec = do
     it "sets module level options" $ do
       doctest ["ModuleOptions.Foo"]
         (cases 5)
+
+    it "succeeds for non-exposed modules if --no-implicit-module-import is set" $ do
+      doctest ["NonExposedModule.NoImplicitImport"]
+        (cases 2)

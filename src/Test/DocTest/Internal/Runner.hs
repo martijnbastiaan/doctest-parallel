@@ -12,7 +12,7 @@ import           Control.Monad hiding (forM_)
 import           Data.Foldable (forM_)
 import           Data.Function (on)
 import           Data.List (sortBy)
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, maybeToList)
 import           GHC.Conc (numCapabilities)
 import           System.IO (hPutStrLn, hPutStr, stderr, hIsTerminalDevice)
 import           System.Random (randoms, mkStdGen)
@@ -26,7 +26,7 @@ import qualified Test.DocTest.Internal.Interpreter as Interpreter
 import           Test.DocTest.Internal.Parse
 import           Test.DocTest.Internal.Options
   ( ModuleName, ModuleConfig (cfgPreserveIt), cfgSeed, cfgPreserveIt
-  , cfgRandomizeOrder, parseLocatedModuleOptions)
+  , cfgRandomizeOrder, cfgImplicitModuleImport, parseLocatedModuleOptions)
 import           Test.DocTest.Internal.Location
 import Test.DocTest.Internal.Property
     ( runProperty, PropertyResult(Failure, Success, Error) )
@@ -200,6 +200,10 @@ runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
           | cfgRandomizeOrder modConfig3 = shuffle seed examples0
           | otherwise = examples0
 
+        importModule
+          | cfgImplicitModuleImport modConfig3 = Just (":m +" ++ module_)
+          | otherwise = Nothing
+
         preserveIt = cfgPreserveIt modConfig3
         seed = fromMaybe 0 (cfgSeed modConfig3) -- Should have been set already
 
@@ -207,8 +211,8 @@ runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
           void $ Interpreter.safeEval repl ":reload"
           mapM_ (Interpreter.safeEval repl) $
             if implicitPrelude
-            then [":m Prelude", importModule]
-            else [":m +" ++ module_]
+            then ":m Prelude" : maybeToList importModule
+            else maybeToList importModule
 
           when preserveIt $
             -- Evaluate a dumb expression to populate the 'it' variable NOTE: This is
@@ -225,7 +229,11 @@ runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
 
       Interpreter.withInterpreter ghciArgs $ \repl -> withCP65001 $ do
         -- Try to import this module, if it fails, something is off
-        importResult <- Interpreter.safeEval repl importModule
+        importResult <-
+          case importModule of
+            Nothing -> pure (Right "")
+            Just i -> Interpreter.safeEval repl i
+
         case importResult of
           Right "" -> do
             -- Run setup group
@@ -251,7 +259,6 @@ runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
  where
   Module module_ setup examples0 modArgs = mod_
   modConfig2 = parseLocatedModuleOptions module_ modConfig0 modArgs
-  importModule = ":m +" ++ module_
 
 data ReportUpdate
   = UpdateSuccess FromSetup Location
@@ -326,7 +333,9 @@ reportImportError :: ModuleName -> Report ()
 reportImportError modName = do
   report ("Could not import module: " <> modName <> ". This can be caused by a number of issues: ")
   report ""
-  report " 1. A module found by GHC contained tests, but was not in 'exposed-modules'."
+  report " 1. A module found by GHC contained tests, but was not in 'exposed-modules'. If you want"
+  report "    to test non-exposed modules follow the instructions here:"
+  report "    https://github.com/martijnbastiaan/doctest-parallel#test-non-exposed-modules"
   report ""
   report " 2. For Cabal users: Cabal did not generate a GHC environment file. Either:"
   report "   * Run with '--write-ghc-environment-files=always'"
