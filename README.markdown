@@ -290,7 +290,7 @@ You _hide_ the import of `Prelude` by using:
 ```
 
 ## Per module options
-You can override command line flags per module by using a module annotation. For example, if you know a specific module does not support test order randomization, you can disabled it with:
+You can override command line flags per module by using a module annotation. For example, if you know a specific module does not support test order randomization, you can disable it with:
 
 ```haskell
 {-# ANN module "--no-randomize-order" #-}
