@@ -53,11 +53,11 @@ spec = do
         (cases 1)
 
     it "it-variable" $ do
-      doctestWithOpts (defaultConfig{cfgPreserveIt=True}) ["It.Foo"]
+      doctestWithOpts (defaultConfig{cfgModuleConfig=defaultModuleConfig{cfgPreserveIt=True}}) ["It.Foo"]
         (cases 5)
 
     it "it-variable in $setup" $ do
-      doctestWithOpts (defaultConfig{cfgPreserveIt=True}) ["It.Setup"]
+      doctestWithOpts (defaultConfig{cfgModuleConfig=defaultModuleConfig{cfgPreserveIt=True}}) ["It.Setup"]
         (cases 2)
 
     it "failing" $ do
@@ -176,3 +176,7 @@ spec = do
     it "correctly handles C import directories" $ do
       doctest ["WithCInclude.Bar"]
         (cases 1)
+
+    it "sets module level options" $ do
+      doctest ["ModuleOptions.Foo"]
+        (cases 5)

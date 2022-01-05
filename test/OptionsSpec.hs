@@ -13,11 +13,34 @@ spec = do
     describe "--preserve-it" $ do
       context "without --preserve-it" $ do
         it "does not preserve the `it` variable" $ do
-          cfgPreserveIt <$> parseOptions [] `shouldBe` Result False
+          cfgPreserveIt . cfgModuleConfig <$>
+            parseOptions [] `shouldBe` Result False
 
       context "with --preserve-it" $ do
         it "preserves the `it` variable" $ do
-          cfgPreserveIt <$> parseOptions ["--preserve-it"] `shouldBe` Result True
+          cfgPreserveIt . cfgModuleConfig <$>
+            parseOptions ["--preserve-it"] `shouldBe` Result True
+
+      context "with --no-preserve-it" $ do
+        it "preserves the `it` variable" $ do
+          cfgPreserveIt . cfgModuleConfig <$>
+            parseOptions ["--no-preserve-it"] `shouldBe` Result False
+
+    describe "--randomize-order" $ do
+      context "without --randomize-order" $ do
+        it "does not set randomize order" $ do
+          cfgRandomizeOrder . cfgModuleConfig <$>
+            parseOptions [] `shouldBe` Result False
+
+      context "with --randomize-order" $ do
+        it "sets randomize order" $ do
+          cfgRandomizeOrder . cfgModuleConfig <$>
+            parseOptions ["--randomize-order"] `shouldBe` Result True
+
+      context "with --no-randomize-order" $ do
+        it "unsets randomize order" $ do
+          cfgRandomizeOrder . cfgModuleConfig <$>
+            parseOptions ["--no-randomize-order"] `shouldBe` Result False
 
     context "with --help" $ do
       it "outputs usage information" $ do

@@ -43,7 +43,7 @@ main = mainFromCabal "your-project" =<< getArgs
 Execute:
 
 ```
-cabal run doctests -- arg1 arg2
+cabal run doctests
 ```
 
 **At the moment, using `cabal test` is not reliable. See [#22](https://github.com/martijnbastiaan/doctest-parallel/issues/22).**
@@ -52,5 +52,51 @@ cabal run doctests -- arg1 arg2
 Stack users can use:
 
 ```
-stack test
+stack test example:doctestsstack test
+```
+
+It will also run as part of `stack test`.
+
+# Help
+Run:
+
+```
+cabal run doctests -- --help
+```
+
+Or:
+
+```
+stack test example:doctests --test-arguments --help
+```
+
+Example output:
+
+```
+Usage:
+  doctest [ options ]... [<module>]...
+  doctest --help
+  doctest --version
+  doctest --info
+
+Options:
+   -jN                      number of threads to use
+†  --randomize-order        randomize order in which tests are run
+†  --seed=N                 use a specific seed to randomize test order
+†  --preserve-it            preserve the `it` variable between examples
+   --verbose                print each test as it is run
+   --quiet                  only print errors
+   --help                   display this help and exit
+   --version                output version information and exit
+   --info                   output machine-readable version information and exit
+
+Supported inverted options:
+†  --no-randomize-order (default)
+†  --no-preserve-it (default)
+
+Options marked with a dagger (†) can also be used to set module level options, using
+an ANN pragma like this:
+
+  {-# ANN module "doctest-parallel: --no-randomize-order" #-}
+
 ```
