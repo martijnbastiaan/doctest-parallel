@@ -1,6 +1,8 @@
 # dev
   * Command line arguments (such as `--randomize-order`) can now be overridden on a per-module basis ([#25](https://github.com/martijnbastiaan/doctest-parallel/pull/25))
   * Implicit pre-test module imports can now be disabled using `--no-implicit-module-import`. This can help to test functions from non-exposed modules ([#26](https://github.com/martijnbastiaan/doctest-parallel/pull/26))
+  * `runModule` does not swallow import errors anymore ([#28](https://github.com/martijnbastiaan/doctest-parallel/issues/28))
+  * `autogen-modules` are not searched for tests anymore ([#30](https://github.com/martijnbastiaan/doctest-parallel/issues/30))
 
 # 0.2.1
   * C include directories (Cabal field: `include-dirs`) are now passed to GHC when parsing source files ([#7](https://github.com/martijnbastiaan/doctest-parallel/issues/7))

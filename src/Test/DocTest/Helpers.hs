@@ -1,7 +1,8 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Test.DocTest.Helpers where
 
@@ -16,6 +17,8 @@ import System.FilePath.Glob (glob)
 import Data.Monoid ((<>))
 #endif
 
+import qualified Data.Set as Set
+
 -- Cabal
 import Distribution.ModuleName (ModuleName)
 import Distribution.Simple
@@ -24,7 +27,8 @@ import Distribution.Types.UnqualComponentName ( unUnqualComponentName )
 import Distribution.PackageDescription
   ( CondTree(CondNode, condTreeData), GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription, condSubLibraries, includeDirs )
+  , packageDescription, condSubLibraries, includeDirs, autogenModules )
+
 import Distribution.Pretty (prettyShow)
 import Distribution.Verbosity (silent)
 
@@ -34,6 +38,15 @@ import Distribution.Utils.Path (SourceDir, PackageDir, SymbolicPath)
 
 -- cabal-install-parsers
 import Distribution.PackageDescription.Parsec (readGenericPackageDescription)
+
+-- | Efficient implementation of set like deletion on lists
+--
+-- >>> "abcd" `rmList` "ad"
+-- "bc"
+-- >>> "aaabcccd" `rmList` "ad"
+-- "bccc"
+rmList :: Ord a => [a] -> [a] -> [a]
+rmList xs (Set.fromList -> ys) = filter (not . (`Set.member` ys)) xs
 
 data Library = Library
   { libSourceDirectories :: [FilePath]
@@ -155,7 +168,7 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
       pure Library
         { libSourceDirectories = map ((root </>) . compatPrettyShow) sourceDirs
         , libCSourceDirectories = map (root </>) cSourceDirs
-        , libModules = exposedModules lib
+        , libModules = exposedModules lib `rmList` autogenModules buildInfo
         , libDefaultExtensions = defaultExtensions buildInfo
         }
 
