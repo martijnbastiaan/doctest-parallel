@@ -122,7 +122,7 @@ runModules modConfig nThreads verbose implicitPrelude args quiet modules = do
     consumeUpdates output =<<
       case update of
         UpdateInternalError fs loc e -> reportInternalError fs loc e >> pure (modsLeft - 1)
-        UpdateImportError modName -> reportImportError modName >> pure (modsLeft - 1)
+        UpdateImportError modName result -> reportImportError modName result >> pure (modsLeft - 1)
         UpdateSuccess fs loc -> reportSuccess fs loc >> reportProgress >> pure modsLeft
         UpdateFailure fs loc expr errs -> reportFailure fs loc expr errs >> pure modsLeft
         UpdateError fs loc expr err -> reportError fs loc expr err >> pure modsLeft
@@ -249,7 +249,7 @@ runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
                 (runTestGroup NotFromSetup preserveIt repl (setup_ repl) output)
                 examples1)
           _ ->
-            writeChan output (UpdateImportError module_)
+            writeChan output (UpdateImportError module_ importResult)
 
   -- Signal main thread a module has been tested
   writeChan output UpdateModuleDone
@@ -275,7 +275,7 @@ data ReportUpdate
   -- ^ Indicate test has started executing (verbose output)
   | UpdateInternalError FromSetup (Module [Located DocTest]) SomeException
   -- ^ Exception caught while executing internal code
-  | UpdateImportError ModuleName
+  | UpdateImportError ModuleName (Either String String)
   -- ^ Could not import module
   | UpdateOptionError Location String
   -- ^ Unrecognized flag in module specific option
@@ -329,8 +329,8 @@ reportInternalError fs mod_ err = do
   report ""
   updateSummary fs emptySummary{sErrors=1}
 
-reportImportError :: ModuleName -> Report ()
-reportImportError modName = do
+reportImportError :: ModuleName -> Either String String -> Report ()
+reportImportError modName importResult = do
   report ("Could not import module: " <> modName <> ". This can be caused by a number of issues: ")
   report ""
   report " 1. A module found by GHC contained tests, but was not in 'exposed-modules'. If you want"
@@ -349,6 +349,17 @@ reportImportError modName = do
   report "    add it to the 'build-depends' section of the testsuite executable."
   report ""
   report "See the example project at https://github.com/martijnbastiaan/doctest-parallel/blob/main/example/README.md for more information."
+  report ""
+  report "The original reason given by GHCi was:"
+  report ""
+  case importResult of
+    Left out -> do
+      report "Unexpected output:"
+      report out
+    Right err -> do
+      report "Error:"
+      report err
+
   updateSummary FromSetup emptySummary{sErrors=1}
 
 reportSuccess :: FromSetup -> Location -> Report ()
