@@ -11,7 +11,7 @@ import           Control.Exception (SomeException, catch)
 import           Control.Monad hiding (forM_)
 import           Data.Foldable (forM_)
 import           Data.Function (on)
-import           Data.List (sortBy)
+import           Data.List (sortBy, sortOn)
 import           Data.Maybe (fromMaybe, maybeToList)
 import           GHC.Conc (numCapabilities)
 import           System.IO (hPutStrLn, hPutStr, stderr, hIsTerminalDevice)
@@ -69,6 +69,15 @@ instance Semigroup Summary where
   (<>) (Summary x1 x2 x3 x4) (Summary y1 y2 y3 y4) =
     Summary (x1 + y1) (x2 + y2) (x3 + y3) (x4 + y4)
 
+-- | Order modules by estimated size; from largest to smallest.
+orderModules :: [Module [Located DocTest]] -> [Module [Located DocTest]]
+orderModules = sortOn ordKey
+ where
+  ordKey Module{moduleSetup, moduleContent} =
+    -1 * (sum [nSetup + length c | c <- moduleContent])
+   where
+    nSetup = maybe (0 :: Int) length moduleSetup
+
 -- | Run all examples from a list of modules.
 runModules
   :: ModuleConfig
@@ -96,7 +105,7 @@ runModules modConfig nThreads verbose implicitPrelude args quiet modules = do
       (runModule modConfig implicitPrelude args)
 
   -- Send instructions to threads
-  liftIO (mapM_ (writeChan input) modules)
+  liftIO (mapM_ (writeChan input) (orderModules modules))
 
   let
     nExamples = (sum . map count) modules
