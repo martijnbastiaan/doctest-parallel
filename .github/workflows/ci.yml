@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         os: ["macOS", "windows", "ubuntu"]
-        resolver: ["lts-18.20"]
+        resolver: ["lts-19.5"]
       fail-fast: false
     steps:
       - name: Checkout
