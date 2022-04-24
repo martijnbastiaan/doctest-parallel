@@ -1,3 +1,6 @@
+# Unreleased
+  * Conditionals in Cabal files are now solved ([#35](https://github.com/martijnbastiaan/doctest-parallel/pull/37)). Thanks to @philderbeast for the report and contributions.
+
 # 0.2.2
   * Command line arguments (such as `--randomize-order`) can now be overridden on a per-module basis ([#25](https://github.com/martijnbastiaan/doctest-parallel/pull/25))
   * Implicit pre-test module imports can now be disabled using `--no-implicit-module-import`. This can help to test functions from non-exposed modules ([#26](https://github.com/martijnbastiaan/doctest-parallel/pull/26))

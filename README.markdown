@@ -377,6 +377,7 @@ cabal run doctests
  * Michael Orlitzky
  * Michael Snoyman
  * Nick Smallbone
+ * Phil de Joux
  * Sakari Jokinen
  * Simon Hengel
  * Sönke Hahn
