@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         os: ["macOS", "windows", "ubuntu"]
-        ghc: ["9.2.1", "9.0.1", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
+        ghc: ["9.2.1", "9.0.1", "8.10.7", "8.8.4", "8.6.5", "8.4.4", "8.2.2"]
         exclude:
           # Windows gets stuck while running the testsuite, but this is not a
           # doctest-parallel failure
