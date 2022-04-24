@@ -41,10 +41,7 @@ import Distribution.Types.ConfVar (ConfVar(..))
 import Distribution.Types.Version (Version, mkVersion')
 import Distribution.Types.VersionRange (withinRange)
 import Distribution.Verbosity (silent)
-
-#if MIN_VERSION_Cabal(3,6,0)
 import Distribution.Utils.Path (SourceDir, PackageDir, SymbolicPath)
-#endif
 
 
 -- | Efficient implementation of set like deletion on lists
@@ -176,7 +173,7 @@ solveCondTree CondNode{condTreeData, condTreeConstraints, condTreeComponents} =
             GHC -> withinRange buildGhc versionRange
             _   -> error ("Unrecognized compiler: " <> show cf)
         -- XXX: We currently ignore any flags passed to Cabal
-        Flag _fn -> False
+        PackageFlag _fn -> False
     Lit b -> b
     CNot con -> not (goCondition con)
     COr con0 con1 -> goCondition con0 || goCondition con1
