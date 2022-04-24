@@ -12,7 +12,7 @@ bug-reports:    https://github.com/martijnbastiaan/doctest-parallel/issues
 homepage:       https://github.com/martijnbastiaan/doctest-parallel#readme
 license:        MIT
 license-file:   LICENSE
-copyright:      (c) 2009-2018 Simon Hengel, 2021 Martijn Bastiaan
+copyright:      (c) 2009-2018 Simon Hengel, 2021-2022 Martijn Bastiaan
 author:         Martijn Bastiaan <martijn@hmbastiaan.nl>
 maintainer:     Martijn Bastiaan <martijn@hmbastiaan.nl>
 build-type:     Simple

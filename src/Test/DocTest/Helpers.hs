@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Test.DocTest.Helpers where
 
@@ -12,6 +13,7 @@ import System.Directory
   ( canonicalizePath, doesFileExist )
 import System.FilePath ((</>), isDrive, takeDirectory)
 import System.FilePath.Glob (glob)
+import System.Info (compilerVersion)
 
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid ((<>))
@@ -25,19 +27,25 @@ import Distribution.Simple
   ( Extension (DisableExtension, EnableExtension, UnknownExtension) )
 import Distribution.Types.UnqualComponentName ( unUnqualComponentName )
 import Distribution.PackageDescription
-  ( CondTree(CondNode, condTreeData), GenericPackageDescription (condLibrary)
+  ( GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription, condSubLibraries, includeDirs, autogenModules )
+  , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar )
 
+import Distribution.Compiler (CompilerFlavor(GHC))
+import Distribution.PackageDescription.Parsec (readGenericPackageDescription)
 import Distribution.Pretty (prettyShow)
+import Distribution.System (buildArch, buildOS)
+import Distribution.Types.Condition (Condition(..))
+import Distribution.Types.CondTree
+import Distribution.Types.ConfVar (ConfVar(..))
+import Distribution.Types.Version (Version, mkVersion')
+import Distribution.Types.VersionRange (withinRange)
 import Distribution.Verbosity (silent)
 
 #if MIN_VERSION_Cabal(3,6,0)
 import Distribution.Utils.Path (SourceDir, PackageDir, SymbolicPath)
 #endif
 
--- cabal-install-parsers
-import Distribution.PackageDescription.Parsec (readGenericPackageDescription)
 
 -- | Efficient implementation of set like deletion on lists
 --
@@ -59,6 +67,15 @@ data Library = Library
     -- ^ Extensions enabled by default
   }
   deriving (Show)
+
+-- | Merge multiple libraries into one, by concatenating all their fields.
+mergeLibraries :: [Library] -> Library
+mergeLibraries libs = Library
+  { libSourceDirectories = concatMap libSourceDirectories libs
+  , libCSourceDirectories = concatMap libCSourceDirectories libs
+  , libModules = concatMap libModules libs
+  , libDefaultExtensions = concatMap libDefaultExtensions libs
+  }
 
 -- | Convert a "Library" to arguments suitable to be passed to GHCi.
 libraryToGhciArgs :: Library -> ([String], [String], [String])
@@ -132,6 +149,43 @@ compatPrettyShow :: FilePath -> FilePath
 compatPrettyShow = id
 #endif
 
+-- | Traverse the given tree, solve predicates in branches, and return its
+-- contents.
+--
+-- XXX: Branches guarded by Cabal flags are ignored. I'm not sure where we should
+--      get this info from.
+--
+solveCondTree :: CondTree ConfVar c a -> [(c, a)]
+solveCondTree CondNode{condTreeData, condTreeConstraints, condTreeComponents} =
+  (condTreeConstraints, condTreeData) : concatMap goBranch condTreeComponents
+ where
+  goBranch :: CondBranch ConfVar c a -> [(c, a)]
+  goBranch (CondBranch condBranchCondition condBranchIfTrue condBranchIfFalse) =
+    if   goCondition condBranchCondition
+    then solveCondTree condBranchIfTrue
+    else maybe mempty solveCondTree condBranchIfFalse
+
+  goCondition :: Condition ConfVar -> Bool
+  goCondition = \case
+    Var cv ->
+      case cv of
+        OS os -> os == buildOS
+        Arch ar -> ar == buildArch
+        Impl cf versionRange ->
+          case cf of
+            GHC -> withinRange buildGhc versionRange
+            _   -> error ("Unrecognized compiler: " <> show cf)
+        -- XXX: We currently ignore any flags passed to Cabal
+        Flag _fn -> False
+    Lit b -> b
+    CNot con -> not (goCondition con)
+    COr con0 con1 -> goCondition con0 || goCondition con1
+    CAnd con0 con1 -> goCondition con0 && goCondition con1
+
+-- | GHC version as Cabal's 'Version' data structure
+buildGhc :: Version
+buildGhc = mkVersion' compilerVersion
+
 -- Given a filepath to a @package.cabal@, parse it, and yield a "Library". Yields
 -- the default Library if first argument is Nothing, otherwise it will look for
 -- a specific sublibrary.
@@ -145,10 +199,10 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
           let pkgDescription = package (packageDescription pkg) in
           error ("Could not find main library in: " <> show pkgDescription)
         Just lib ->
-          go lib
+          pure (go lib)
 
     Just libName ->
-      go (findSubLib pkg libName (condSubLibraries pkg))
+      pure (go (findSubLib pkg libName (condSubLibraries pkg)))
 
  where
   findSubLib pkg targetLibName [] =
@@ -158,19 +212,22 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
     | unUnqualComponentName libName == targetLibName = lib
     | otherwise = findSubLib pkg targetLibName libs
 
-  go CondNode{condTreeData=lib} =
-    let
-      buildInfo = libBuildInfo lib
-      sourceDirs = hsSourceDirs buildInfo
-      cSourceDirs = includeDirs buildInfo
-      root = takeDirectory pkgPath
-    in
-      pure Library
-        { libSourceDirectories = map ((root </>) . compatPrettyShow) sourceDirs
-        , libCSourceDirectories = map (root </>) cSourceDirs
-        , libModules = exposedModules lib `rmList` autogenModules buildInfo
-        , libDefaultExtensions = defaultExtensions buildInfo
-        }
+  go condNode = mergeLibraries libs1
+   where
+    libs0 = map snd (solveCondTree condNode)
+    libs1 = map goLib libs0
+
+  goLib lib = Library
+    { libSourceDirectories = map ((root </>) . compatPrettyShow) sourceDirs
+    , libCSourceDirectories = map (root </>) cSourceDirs
+    , libModules = exposedModules lib `rmList` autogenModules buildInfo
+    , libDefaultExtensions = defaultExtensions buildInfo
+    }
+   where
+    buildInfo = libBuildInfo lib
+    sourceDirs = hsSourceDirs buildInfo
+    cSourceDirs = includeDirs buildInfo
+    root = takeDirectory pkgPath
 
 
 -- Given a filepath to a @package.cabal@, parse it, and yield a "Library". Returns
