@@ -12,12 +12,13 @@ bug-reports:    https://github.com/martijnbastiaan/doctest-parallel/issues
 homepage:       https://github.com/martijnbastiaan/doctest-parallel#readme
 license:        MIT
 license-file:   LICENSE
-copyright:      (c) 2009-2018 Simon Hengel, 2021 Martijn Bastiaan
+copyright:      (c) 2009-2018 Simon Hengel, 2021-2022 Martijn Bastiaan
 author:         Martijn Bastiaan <martijn@hmbastiaan.nl>
 maintainer:     Martijn Bastiaan <martijn@hmbastiaan.nl>
 build-type:     Simple
 tested-with:
-    GHC == 8.4.4
+    GHC == 8.2.2
+  , GHC == 8.4.4
   , GHC == 8.6.5
   , GHC == 8.8.4
   , GHC == 8.10.7
@@ -86,7 +87,7 @@ library
   other-modules:
       Paths_doctest_parallel
   build-depends:
-      Cabal
+      Cabal >= 3.4
     , Glob
     , base >=4.10 && <5
     , base-compat >=0.7.0
@@ -97,7 +98,7 @@ library
     , exceptions
     , extra
     , filepath
-    , ghc >=8.4 && <9.3
+    , ghc >=8.2 && <9.3
     , ghc-paths >=0.1.0.9
     , pretty
     , process
