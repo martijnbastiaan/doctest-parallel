@@ -379,8 +379,8 @@ verboseReport xs = do
 
 updateSummary :: FromSetup -> Summary -> Report ()
 updateSummary FromSetup summary =
-  -- Suppress counts, except for errors
-  updateSummary NotFromSetup summary{sExamples=0, sTried=0, sFailures=0}
+  -- Suppress counts, except for errors and unexpected outputs
+  updateSummary NotFromSetup summary{sExamples=0, sTried=0}
 updateSummary NotFromSetup summary = do
   ReportState n f v q s <- get
   put (ReportState n f v q $ s `mappend` summary)

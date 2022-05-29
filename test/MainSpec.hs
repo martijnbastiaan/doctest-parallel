@@ -111,7 +111,7 @@ spec = do
     it "skips subsequent tests from a module, if $setup fails" $ do
       doctest ["SetupSkipOnFailure.Foo"]
         -- TODO: Introduce "skipped"
-        (cases 2) {sTried = 0, sFailures = 0}
+        (cases 2) {sTried = 0, sFailures = 1}
 
     it "works with additional object files" $ do
       doctest ["WithCbits.Bar"]
