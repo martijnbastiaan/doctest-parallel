@@ -24,6 +24,7 @@ tested-with:
   , GHC == 8.10.7
   , GHC == 9.0.1
   , GHC == 9.2.1
+  , GHC == 9.4.1
 extra-source-files:
     example/example.cabal
     example/src/Example.hs
@@ -87,7 +88,7 @@ library
   other-modules:
       Paths_doctest_parallel
   build-depends:
-      Cabal >= 3.4
+      Cabal >= 3.4 && < 3.9
     , Glob
     , base >=4.10 && <5
     , base-compat >=0.7.0
@@ -98,7 +99,7 @@ library
     , exceptions
     , extra
     , filepath
-    , ghc >=8.2 && <9.3
+    , ghc >=8.2 && <9.5
     , ghc-paths >=0.1.0.9
     , pretty
     , process

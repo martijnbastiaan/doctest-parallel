@@ -32,7 +32,6 @@ import Distribution.PackageDescription
   , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar )
 
 import Distribution.Compiler (CompilerFlavor(GHC))
-import Distribution.PackageDescription.Parsec (readGenericPackageDescription)
 import Distribution.Pretty (prettyShow)
 import Distribution.System (buildArch, buildOS)
 import Distribution.Types.Condition (Condition(..))
@@ -41,6 +40,12 @@ import Distribution.Types.ConfVar (ConfVar(..))
 import Distribution.Types.Version (Version, mkVersion')
 import Distribution.Types.VersionRange (withinRange)
 import Distribution.Verbosity (silent)
+
+#if MIN_VERSION_Cabal(3,8,0)
+import Distribution.Simple.PackageDescription (readGenericPackageDescription)
+#else
+import Distribution.PackageDescription.Parsec (readGenericPackageDescription)
+#endif
 
 #if MIN_VERSION_Cabal(3,6,0)
 import Distribution.Utils.Path (SourceDir, PackageDir, SymbolicPath)

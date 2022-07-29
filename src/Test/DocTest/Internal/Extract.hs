@@ -87,9 +87,9 @@ instance Show ExtractError where
       , ""
       , "    " ++ msg
       , ""
-      , "This is most likely a bug in doctest."
+      , "This is most likely a bug in doctest-parallel."
       , ""
-      , "Please report it here: https://github.com/sol/doctest/issues/new"
+      , "Please report it here: https://github.com/martijnbastiaan/doctest-parallel/issues/new"
       ]
     where
       msg = case fromException e of
@@ -183,11 +183,7 @@ parse args = withGhc args $ \modules -> withTempOutputDir $ do
       _ <- setSessionDynFlags (GHC.ms_hspp_opts modsum)
       hsc_env <- getSession
 
-# if __GLASGOW_HASKELL__ >= 903
-      hsc_env' <- liftIO (initializePlugins hsc_env Nothing)
-      setSession hsc_env'
-      return $ modsum
-# elif __GLASGOW_HASKELL__ >= 901
+# if __GLASGOW_HASKELL__ >= 901
       hsc_env' <- liftIO (initializePlugins hsc_env)
       setSession hsc_env'
       return $ modsum
@@ -244,27 +240,43 @@ moduleAnnsFromModule mod =
 -- | Extract all docstrings from given module.
 docStringsFromModule :: ParsedModule -> [(Maybe String, Located String)]
 docStringsFromModule mod =
+#if __GLASGOW_HASKELL__ < 904
   map (fmap (toLocated . fmap unpackHDS)) docs
+#else
+  map (fmap (toLocated . fmap renderHsDocString)) docs
+#endif
  where
-  source   = (unLoc . pm_parsed_source) mod
+  source = (unLoc . pm_parsed_source) mod
 
   -- we use dlist-style concatenation here
-  docs     = header ++ exports ++ decls
+  docs :: [(Maybe String, LHsDocString)]
+  docs = header ++ exports ++ decls
 
   -- We process header, exports and declarations separately instead of
   -- traversing the whole source in a generic way, to ensure that we get
   -- everything in source order.
+  header :: [(Maybe String, LHsDocString)]
+#if __GLASGOW_HASKELL__ < 904
   header  = [(Nothing, x) | Just x <- [hsmodHaddockModHeader source]]
+#else
+  header = [(Nothing, hsDocString <$> x) | Just x <- [hsmodHaddockModHeader source]]
+#endif
+
+  exports :: [(Maybe String, LHsDocString)]
   exports = [ (Nothing, L (locA loc) doc)
 #if __GLASGOW_HASKELL__ < 710
             | L loc (IEDoc doc) <- concat (hsmodExports source)
 #elif __GLASGOW_HASKELL__ < 805
             | L loc (IEDoc doc) <- maybe [] unLoc (hsmodExports source)
-#else
+#elif __GLASGOW_HASKELL__ < 904
             | L loc (IEDoc _ doc) <- maybe [] unLoc (hsmodExports source)
+#else
+            | L loc (IEDoc _ (unLoc . fmap hsDocString -> doc)) <- maybe [] unLoc (hsmodExports source)
 #endif
             ]
-  decls   = extractDocStrings (hsmodDecls source)
+
+  decls :: [(Maybe String, LHsDocString)]
+  decls   = extractDocStrings (Right (hsmodDecls source))
 
 type Selector b a = a -> ([b], Bool)
 
@@ -274,6 +286,12 @@ type AnnSelector a = Selector (Located String) a
 -- | Collect given value and descend into subtree.
 select :: a -> ([a], Bool)
 select x = ([x], False)
+
+#if __GLASGOW_HASKELL__ >= 904
+-- | Don't collect any values
+noSelect :: ([a], Bool)
+noSelect = ([], False)
+#endif
 
 -- | Extract module annotations from given value.
 extractModuleAnns :: Data a => a -> [Located String]
@@ -303,7 +321,11 @@ extractLit loc = \case
   HsLit (HsString _ s) -> Just (toLocated (L loc (unpackFS s)))
   _ -> Nothing
 #else
+#if __GLASGOW_HASKELL__ < 904
   HsPar _ (L l e) -> extractLit (locA l) e
+#else
+  HsPar _ _ (L l e) _ -> extractLit (locA l) e
+#endif
 #if __GLASGOW_HASKELL__ < 807
   ExprWithTySig _ (L l e) -> extractLit l e
 #else
@@ -315,11 +337,18 @@ extractLit loc = \case
 #endif
 
 -- | Extract all docstrings from given value.
-extractDocStrings :: Data a => a -> [(Maybe String, LHsDocString)]
-extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
-  `extQ` fromLDocDecl
-  `extQ` fromLHsDocString
-  )
+extractDocStrings :: Either (HsDecl GhcPs) [LHsDecl GhcPs] -> [(Maybe String, LHsDocString)]
+extractDocStrings =
+  everythingBut
+    (++)
+    (        ([], False)
+      `mkQ`  fromLHsDecl
+      `extQ` fromLDocDecl
+      `extQ` fromLHsDocString
+#if __GLASGOW_HASKELL__ >= 904
+      `extQ` fromHsType
+#endif
+    )
   where
     fromLHsDecl :: DocSelector (LHsDecl GhcPs)
     fromLHsDecl (L loc decl) = case decl of
@@ -334,7 +363,7 @@ extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
 #endif
            -> select (fromDocDecl (locA loc) x)
 
-      _ -> (extractDocStrings decl, True)
+      _ -> (extractDocStrings (Left decl), True)
 
 
     fromLDocDecl :: DocSelector
@@ -348,10 +377,26 @@ extractDocStrings = everythingBut (++) (([], False) `mkQ` fromLHsDecl
     fromLHsDocString :: DocSelector LHsDocString
     fromLHsDocString x = select (Nothing, x)
 
+#if __GLASGOW_HASKELL__ >= 904
+    fromHsType :: DocSelector (HsType GhcPs)
+    fromHsType x = case x of
+      HsDocTy _ _ (L loc hsDoc) -> select (Nothing, L loc (hsDocString hsDoc))
+      _ -> noSelect
+#endif
+
+#if __GLASGOW_HASKELL__ < 904
     fromDocDecl :: SrcSpan -> DocDecl -> (Maybe String, LHsDocString)
+#else
+    fromDocDecl :: SrcSpan -> DocDecl GhcPs -> (Maybe String, LHsDocString)
+#endif
     fromDocDecl loc x = case x of
+#if __GLASGOW_HASKELL__ < 904
       DocCommentNamed name doc -> (Just name, L loc doc)
       _                        -> (Nothing, L loc $ docDeclDoc x)
+#else
+      DocCommentNamed name doc -> (Just name, hsDocString <$> doc)
+      _                        -> (Nothing, L loc $ hsDocString $ unLoc $ docDeclDoc x)
+#endif
 
 #if __GLASGOW_HASKELL__ < 805
 -- | Convert a docstring to a plain string.

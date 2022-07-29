@@ -68,16 +68,29 @@ jobs:
           # doctest-parallel failure
           - os: windows
             ghc: 8.8.4
+        include:
+          - os: ubuntu
+            ghc: head
       fail-fast: false
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Setup Haskell
+        if: matrix.ghc != 'head'
         uses: haskell/actions/setup@v1
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
+
+      - name: Setup Haskell (head)
+        if: matrix.ghc == 'head'
+        id: setup-haskell-head
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          ghcup install -u https://downloads.haskell.org/~ghc/9.4.1-rc1/ghc-9.4.0.20220721-x86_64-deb9-linux.tar.xz ghc-9.4.1
+          ghcup set ghc 9.4.1
+          echo "::set-output name=cabal-store::$HOME/.cabal/store"
 
       - name: Setup CI
         run: |
@@ -87,7 +100,7 @@ jobs:
       - name: Cache dependencies
         uses: actions/cache@v2
         with:
-          path: ${{ steps.setup-haskell.outputs.cabal-store }}
+          path: ${{ steps.setup-haskell.outputs.cabal-store || steps.setup-haskell-head.outputs.cabal-store }}
           key: ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ hashFiles('frozen') }}
           restore-keys: |
             ${{ runner.os }}-ghc-${{ matrix.ghc }}-${{ hashFiles('frozen') }}

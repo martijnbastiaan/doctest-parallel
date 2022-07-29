@@ -1,3 +1,6 @@
+# 0.2.4 (unreleased)
+  * Add support for GHC 9.4 ([#43](https://github.com/martijnbastiaan/doctest-parallel/pull/43))
+
 # 0.2.3
   * Conditionals in Cabal files are now solved ([#35](https://github.com/martijnbastiaan/doctest-parallel/pull/37)). Thanks to @philderbeast for the report and contributions.
   * Unexpected outputs in `$setup` blocks are no longer ignored ([#39](https://github.com/martijnbastiaan/doctest-parallel/pull/39))
