@@ -1,4 +1,4 @@
-# 0.2.4 (unreleased)
+# 0.2.4
   * Add support for GHC 9.4 ([#43](https://github.com/martijnbastiaan/doctest-parallel/pull/43))
 
 # 0.2.3
