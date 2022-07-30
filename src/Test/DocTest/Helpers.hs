@@ -112,7 +112,7 @@ dropEnd i xs
    f (a:as) (_:bs) = a : f as bs
    f _ _ = []
 
--- Searches for a file called @package.cabal@, where @package@ is given as an
+-- | Searches for a file called @package.cabal@, where @package@ is given as an
 -- argument. It will look for it in the current directory. If it can't find it
 -- there, it will traverse up until it finds the file or a file called
 -- @cabal.project@. In case of the latter, it will traverse down recursively
@@ -191,7 +191,7 @@ solveCondTree CondNode{condTreeData, condTreeConstraints, condTreeComponents} =
 buildGhc :: Version
 buildGhc = mkVersion' compilerVersion
 
--- Given a filepath to a @package.cabal@, parse it, and yield a "Library". Yields
+-- | Given a filepath to a @package.cabal@, parse it, and yield a "Library". Yields
 -- the default Library if first argument is Nothing, otherwise it will look for
 -- a specific sublibrary.
 extractSpecificCabalLibrary :: Maybe String -> FilePath -> IO Library
@@ -235,7 +235,7 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
     root = takeDirectory pkgPath
 
 
--- Given a filepath to a @package.cabal@, parse it, and yield a "Library". Returns
+-- | Given a filepath to a @package.cabal@, parse it, and yield a "Library". Returns
 -- and error if no library was specified in the cabal package file.
 extractCabalLibrary :: FilePath -> IO Library
 extractCabalLibrary = extractSpecificCabalLibrary Nothing
