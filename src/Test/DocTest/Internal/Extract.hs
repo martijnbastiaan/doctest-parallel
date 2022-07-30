@@ -42,7 +42,7 @@ import           Control.Monad.Catch (generalBracket)
 #endif
 
 import           System.Directory
-import           System.FilePath
+import           System.IO.Temp (createTempDirectory)
 
 #if __GLASGOW_HASKELL__ < 900
 import           BasicTypes (SourceText(SourceText))
@@ -54,8 +54,6 @@ import           GHC.Types.Basic (SourceText(SourceText))
 import           GHC.Data.FastString (unpackFS)
 import           GHC.Types.SourceText (SourceText(SourceText))
 #endif
-
-import           System.Posix.Internals (c_getpid)
 
 import           Test.DocTest.Internal.GhcUtil (withGhc)
 import           Test.DocTest.Internal.Location hiding (unLoc)
@@ -151,22 +149,18 @@ parse args = withGhc args $ \modules -> withTempOutputDir $ do
 
     withTempOutputDir :: Ghc a -> Ghc a
     withTempOutputDir action = do
-      tmp <- liftIO getTemporaryDirectory
-      x   <- liftIO c_getpid
-      let dir = tmp </> ".doctest-" ++ show x
-      modifySessionDynFlags (setOutputDir dir)
       gbracket_
-        (liftIO $ createDirectory dir)
-        (liftIO $ removeDirectoryRecursive dir)
-        action
+        (liftIO $ flip createTempDirectory "doctest" =<< getTemporaryDirectory)
+        (\dir -> liftIO (removeDirectoryRecursive dir))
+        (\dir -> modifySessionDynFlags (setOutputDir dir) >> action)
 
     -- | A variant of 'gbracket' where the return value from the first computation
     -- is not required.
-    gbracket_ :: ExceptionMonad m => m a -> m b -> m c -> m c
+    gbracket_ :: ExceptionMonad m => m a -> (a -> m ()) -> (a -> m c) -> m c
 #if __GLASGOW_HASKELL__ < 900
-    gbracket_ before_ after thing = gbracket before_ (const after) (const thing)
+    gbracket_ acquire release action = gbracket acquire release action
 #else
-    gbracket_ before_ after thing = fst <$> generalBracket before_ (\ _ _ -> after) (const thing)
+    gbracket_ acquire release action = fst <$> generalBracket acquire (\a _ -> release a) action
 #endif
 
     setOutputDir f d = d {

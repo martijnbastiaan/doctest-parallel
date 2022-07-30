@@ -18,7 +18,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = do
+spec = parallel $ do
 
   describe "toLocation" $ do
 

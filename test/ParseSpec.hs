@@ -28,7 +28,7 @@ shouldGive :: IO [Module [Located DocTest]] -> Writer [Module [DocTest]] () -> E
 shouldGive action expected = map (fmap $ map unLoc) `fmap` action `shouldReturn` execWriter expected
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "getDocTests" $ do
     it "extracts properties from a module" $ do
       getDocTests ["test/parse/property/Fib.hs"] `shouldGive` do

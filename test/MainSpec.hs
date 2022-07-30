@@ -36,7 +36,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   env <- runIO getEnvironment
   let
     cDescribe =

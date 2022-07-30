@@ -15,7 +15,7 @@ isFailure (Failure _) = True
 isFailure _ = False
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "runProperty" $ do
     it "reports a failing property" $ withInterpreter [] $ \repl -> do
       runProperty repl "False" `shouldReturn` Failure "*** Failed! Falsified (after 1 test):"

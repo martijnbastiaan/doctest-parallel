@@ -26,7 +26,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "doctest" $ do
     it "exits with ExitFailure if at least one test case fails" $ do
       hSilence [stderr] (doctest ["Failing.Foo"]) `shouldThrow` (== ExitFailure 1)
