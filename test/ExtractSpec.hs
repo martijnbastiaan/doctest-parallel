@@ -30,7 +30,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   let mod_ nm content = Module nm Nothing content []
 
   describe "extract" $ do

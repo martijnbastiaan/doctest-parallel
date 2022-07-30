@@ -8,7 +8,7 @@ import           Test.Hspec
 import           Test.DocTest.Internal.Options
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "parseOptions" $ do
     describe "--preserve-it" $ do
       context "without --preserve-it" $ do

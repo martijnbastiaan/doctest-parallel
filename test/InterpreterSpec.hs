@@ -13,7 +13,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = do
+spec = parallel $ do
   describe "interpreterSupported" $ do
     it "indicates whether GHCi is supported on current platform" $ do
       (Interpreter.interpreterSupported >> return ()) `shouldReturn` ()

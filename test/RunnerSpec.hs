@@ -19,7 +19,7 @@ capture_ :: Report a -> IO String
 capture_ = fmap fst . hCapture [stderr] . (`execStateT` ReportState 0 False False False mempty)
 
 spec :: Spec
-spec = do
+spec = parallel $ do
 
   describe "report" $ do
 

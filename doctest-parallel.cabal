@@ -105,6 +105,7 @@ library
     , process
     , random >= 1.2
     , syb >=0.3
+    , temporary
     , transformers
     , unordered-containers
   default-language: Haskell2010
@@ -187,7 +188,7 @@ test-suite spectests
       RunSpec
       UtilSpec
   type: exitcode-stdio-1.0
-  ghc-options: -Wall -threaded
+  ghc-options: -Wall -threaded -with-rtsopts=-N
   cpp-options: -DTEST
   hs-source-dirs:
       test
