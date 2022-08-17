@@ -322,10 +322,6 @@ This is a fork of [sol/doctest](https://github.com/sol/doctest) that allows runn
  * A minor change: it does not count lines in setup blocks as test cases
  * A minor change: the testsuite has been ported to v2 commands
 
-AFAIK there's only one downside to using this project:
-
- * Use of conditionals in a cabal file as well as CPP flags will be ignored (TODO?)
-
 All in all, you can expect `doctest-parallel` to run about 1 or 2 orders of magnitude faster than `doctest` for large projects.
 
 # Relation to [`cabal-docspec`](https://github.com/phadej/cabal-extras/tree/master/cabal-docspec)
