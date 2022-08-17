@@ -1,3 +1,6 @@
+# 0.2.5
+  * Loosen Cabal bounds to >= 2.4 && < 3.9
+
 # 0.2.4
   * Add support for GHC 9.4 ([#43](https://github.com/martijnbastiaan/doctest-parallel/pull/43))
 

@@ -29,14 +29,13 @@ import Distribution.Types.UnqualComponentName ( unUnqualComponentName )
 import Distribution.PackageDescription
   ( GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar )
+  , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar(..) )
 
 import Distribution.Compiler (CompilerFlavor(GHC))
 import Distribution.Pretty (prettyShow)
 import Distribution.System (buildArch, buildOS)
 import Distribution.Types.Condition (Condition(..))
 import Distribution.Types.CondTree
-import Distribution.Types.ConfVar (ConfVar(..))
 import Distribution.Types.Version (Version, mkVersion')
 import Distribution.Types.VersionRange (withinRange)
 import Distribution.Verbosity (silent)
@@ -181,7 +180,11 @@ solveCondTree CondNode{condTreeData, condTreeConstraints, condTreeComponents} =
             GHC -> withinRange buildGhc versionRange
             _   -> error ("Unrecognized compiler: " <> show cf)
         -- XXX: We currently ignore any flags passed to Cabal
+#if MIN_VERSION_Cabal(3,4,0)
         PackageFlag _fn -> False
+#else
+        Flag _fn -> False
+#endif
     Lit b -> b
     CNot con -> not (goCondition con)
     COr con0 con1 -> goCondition con0 || goCondition con1
