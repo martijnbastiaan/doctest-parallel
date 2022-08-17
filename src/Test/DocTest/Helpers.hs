@@ -29,14 +29,13 @@ import Distribution.Types.UnqualComponentName ( unUnqualComponentName )
 import Distribution.PackageDescription
   ( GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar )
+  , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar(..) )
 
 import Distribution.Compiler (CompilerFlavor(GHC))
 import Distribution.Pretty (prettyShow)
 import Distribution.System (buildArch, buildOS)
 import Distribution.Types.Condition (Condition(..))
 import Distribution.Types.CondTree
-import Distribution.Types.ConfVar (ConfVar(..))
 import Distribution.Types.Version (Version, mkVersion')
 import Distribution.Types.VersionRange (withinRange)
 import Distribution.Verbosity (silent)
