@@ -181,7 +181,11 @@ solveCondTree CondNode{condTreeData, condTreeConstraints, condTreeComponents} =
             GHC -> withinRange buildGhc versionRange
             _   -> error ("Unrecognized compiler: " <> show cf)
         -- XXX: We currently ignore any flags passed to Cabal
+#if MIN_VERSION_Cabal(3,4,0)
         PackageFlag _fn -> False
+#else
+        Flag _fn -> False
+#endif
     Lit b -> b
     CNot con -> not (goCondition con)
     COr con0 con1 -> goCondition con0 || goCondition con1
