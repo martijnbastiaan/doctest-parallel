@@ -39,6 +39,7 @@ usage = unlines [
   , "†  --randomize-order        randomize order in which tests are run"
   , "†  --seed=N                 use a specific seed to randomize test order"
   , "†  --preserve-it            preserve the `it` variable between examples"
+  , "   --nix                    account for Nix build environments (default)"
   , "   --verbose                print each test as it is run"
   , "   --quiet                  only print errors"
   , "   --help                   display this help and exit"
@@ -46,6 +47,7 @@ usage = unlines [
   , "   --info                   output machine-readable version information and exit"
   , ""
   , "Supported inverted options:"
+  , "   --no-nix"
   , "†  --no-implicit-module-import"
   , "†  --no-randomize-order (default)"
   , "†  --no-preserve-it (default)"
@@ -98,6 +100,9 @@ data Config = Config
   -- ^ Only print error messages, no status or progress messages (default: @False@)
   , cfgModuleConfig :: ModuleConfig
   -- ^ Options specific to modules
+  , cfgNix :: Bool
+  -- ^ Detect Nix build environment and try to make GHC aware of the local package
+  -- being tested.
   } deriving (Show, Eq, Generic, NFData)
 
 data ModuleConfig = ModuleConfig
@@ -129,6 +134,7 @@ defaultConfig = Config
   , cfgThreads = Nothing
   , cfgQuiet = False
   , cfgModuleConfig = defaultModuleConfig
+  , cfgNix = True
   }
 
 parseLocatedModuleOptions ::
@@ -167,6 +173,8 @@ parseOptions = go defaultConfig
       "--version" -> ResultStdout versionInfo
       "--verbose" -> go config{cfgVerbose=True} args
       "--quiet" -> go config{cfgQuiet=True} args
+      "--nix" -> go config{cfgNix=True} args
+      "--no-nix" -> go config{cfgNix=False} args
       ('-':_) | Just n <- parseThreads arg -> go config{cfgThreads=Just n} args
       ('-':_)
         -- Module specific configuration options
