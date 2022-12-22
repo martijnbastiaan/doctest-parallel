@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Setup Haskell
-        uses: haskell/actions/setup@v1
+        uses: haskell/actions/setup@v2
         id: setup-haskell
         with:
           enable-stack: true
@@ -62,15 +62,26 @@ jobs:
     strategy:
       matrix:
         os: ["macOS", "windows", "ubuntu"]
-        ghc: ["9.2.1", "9.0.1", "8.10.7", "8.8.4", "8.6.5", "8.4.4", "8.2.2"]
+        ghc: ["9.4.3", "9.2.5", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4", "8.2.2"]
         exclude:
           # Windows gets stuck while running the testsuite, but this is not a
           # doctest-parallel failure
           - os: windows
             ghc: 8.8.4
-        include:
-          - os: ubuntu
-            ghc: head
+
+          # Chocolaty fails, see https://github.com/haskell/actions/issues/129
+          - os: windows
+            ghc: 9.4.3
+
+          # Chocolaty fails, see https://github.com/haskell/actions/issues/129
+          - os: windows
+            ghc: 9.2.5
+
+        # Uncomment if testing with an unreleased GHC. Make sure to edit the
+        #  "Setup Haskell (head)" step too.
+        # include:
+        #   - os: ubuntu
+        #     ghc: head
       fail-fast: false
     steps:
       - name: Checkout
@@ -78,7 +89,7 @@ jobs:
 
       - name: Setup Haskell
         if: matrix.ghc != 'head'
-        uses: haskell/actions/setup@v1
+        uses: haskell/actions/setup@v2
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
