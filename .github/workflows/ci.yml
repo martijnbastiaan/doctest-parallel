@@ -137,6 +137,15 @@ jobs:
           # cabal v2-test
           cabal v2-run doctests
 
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: cachix/install-nix-action@v18
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+    - run: nix-build
+
   # Mandatory check on GitHub
   all:
     name: All jobs finished
@@ -144,6 +153,7 @@ jobs:
     needs: [
         cabal,
         stack,
+        nix,
       ]
     runs-on: ubuntu-22.04
     steps:

@@ -1,6 +1,7 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module MainSpec (main, spec) where
 
@@ -37,15 +38,20 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-  env <- runIO getEnvironment
+  env <- Map.fromList <$> runIO getEnvironment
+
   let
     cDescribe =
-      -- Don't run doctests as part of the Stack testsuite yet, pending
-      -- https://github.com/commercialhaskell/stack/issues/5662
-      if "STACK_EXE" `Map.member` Map.fromList env then
-        xdescribe
-      else
-        describe
+      if
+        -- Don't run doctests as part of the Stack testsuite yet, pending
+        -- https://github.com/commercialhaskell/stack/issues/5662
+        | "STACK_EXE" `Map.member` env -> xdescribe
+
+        -- Don't run doctests as part of a Nix build. Similar to Stack, Nix
+        -- doesn't seem to deal with private libraries yet.
+        | "NIX_BUILD_TOP" `Map.member` env -> xdescribe
+
+        | otherwise -> describe
 
   cDescribe "doctest" $ do
     it "testSimple" $
