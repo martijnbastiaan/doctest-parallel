@@ -195,14 +195,14 @@ verify properties with QuickCheck.  A simple property looks like this:
 
 ```haskell
 -- |
--- prop> \xs -> sort xs == (sort . sort) (xs :: [Int])
+-- prop> \n -> abs n == abs (abs (n :: Int))
 ```
 
 The lambda abstraction is optional and can be omitted:
 
 ```haskell
 -- |
--- prop> sort xs == (sort . sort) (xs :: [Int])
+-- prop> abs n == abs (abs (n :: Int))
 ```
 
 A complete example that uses setup code is below:
