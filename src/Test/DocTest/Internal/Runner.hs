@@ -13,7 +13,7 @@ import           Data.Foldable (forM_)
 import           Data.Function (on)
 import           Data.List (sortBy)
 import           Data.Maybe (fromMaybe, maybeToList)
-import           GHC.Conc (numCapabilities)
+import           GHC.Conc (getNumProcessors)
 import           System.IO (hPutStrLn, hPutStr, stderr, hIsTerminalDevice)
 import           System.Random (randoms, mkStdGen)
 import           Text.Printf (printf)
@@ -74,7 +74,7 @@ runModules
   :: ModuleConfig
   -- ^ Configuration options specific to module
   -> Maybe Int
-  -- ^ Number of threads to use. Defaults to 'numCapabilities'.
+  -- ^ Number of threads to use. Defaults to 'getNumProcessors'.
   -> Bool
   -- ^ Verbose
   -> Bool
@@ -90,9 +90,10 @@ runModules modConfig nThreads verbose implicitPrelude args quiet modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
+  nCores <- getNumProcessors
   (input, output) <-
     makeThreadPool
-      (fromMaybe numCapabilities nThreads)
+      (fromMaybe nCores nThreads)
       (runModule modConfig implicitPrelude args)
 
   -- Send instructions to threads

@@ -1,3 +1,6 @@
+# Unreleased
+  * `getNumProcessors` is now used to detect the (default) number of GHCi subprocesses to spawn. This should more reliably use all of a system's resources. Fixes [#53](https://github.com/martijnbastiaan/doctest-parallel/issues/53).
+
 # 0.2.5
   * Loosen Cabal bounds to >= 2.4 && < 3.9
 
