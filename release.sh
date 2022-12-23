@@ -5,8 +5,10 @@ IFS=$'\n\t'
 rm -rf dist-newstyle
 rm -rf .ghc.env*
 
+cabal update
 cabal sdist
 cabal v2-haddock doctest-parallel \
+  --with-compiler ghc-8.10.7 \
   --haddock-for-hackage \
   --haddock-hyperlinked-source \
   --enable-documentation
