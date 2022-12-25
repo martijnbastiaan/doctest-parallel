@@ -146,7 +146,13 @@ jobs:
         nix_path: nixpkgs=channel:nixos-unstable
     - run: |
         nix-build
-        cd test/nix && nix-build
+
+        cd test/nix
+        nix-build
+        nix-shell --pure --run "cabal run doctests"
+        nix-shell --pure --run "cabal test"
+        nix-shell --pure --run "cabal run doctests --write-ghc-environment-files=always"
+        nix-shell --pure --run "cabal test --write-ghc-environment-files=always"
 
   # Mandatory check on GitHub
   all:
