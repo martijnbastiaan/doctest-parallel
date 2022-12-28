@@ -1,3 +1,6 @@
+# Unreleased
+ * Add support for Nix shell environments ([#58](https://github.com/martijnbastiaan/doctest-parallel/pull/58))
+
 # 0.2.6
   * `getNumProcessors` is now used to detect the (default) number of GHCi subprocesses to spawn. This should more reliably use all of a system's resources. Fixes [#53](https://github.com/martijnbastiaan/doctest-parallel/issues/53).
   * Add Nix support. If the environment variable `NIX_BUILD_TOP` is present an extra package database is added to `GHC_PACKAGE_PATH`. This isn't expected to break existing builds, but if it does consider passing `--no-nix`. ([#34](https://github.com/martijnbastiaan/doctest-parallel/issues/34))

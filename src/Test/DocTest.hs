@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -23,14 +22,8 @@ import           Prelude.Compat
 import qualified Data.Set as Set
 
 import           Control.Monad (unless)
-import           Control.Monad.Compat (when)
-import           Control.Monad.Extra (whenM)
-import           Data.List (isInfixOf)
-import           Data.Maybe (fromMaybe)
-import           System.Directory (doesDirectoryExist, makeAbsolute)
-import           System.Environment (lookupEnv, setEnv)
+import           Control.Monad.Extra (ifM)
 import           System.Exit (exitFailure)
-import           System.FilePath ((</>))
 import           System.IO
 import           System.Random (randomIO)
 
@@ -45,6 +38,7 @@ import GHC.Utils.Panic
 import Test.DocTest.Internal.Parse
 import Test.DocTest.Internal.Options
 import Test.DocTest.Internal.Runner
+import Test.DocTest.Internal.Nix (getNixGhciArgs)
 
 -- Cabal
 import Distribution.Simple
@@ -132,47 +126,21 @@ setSeed quiet cfg@ModuleConfig{cfgRandomizeOrder=True, cfgSeed=Nothing} = do
   pure cfg{cfgSeed=Just seed}
 setSeed _quiet cfg = pure cfg
 
--- | @GHC_PACKAGE_PATH@. Here as a variable to prevent typos.
-gHC_PACKAGE_PATH :: String
-gHC_PACKAGE_PATH = "GHC_PACKAGE_PATH"
-
--- | Add locally built package to @GHC_PACKAGE_PATH@ if a Nix environment is
--- detected.
-addLocalNixPackageToGhcPath :: IO ()
-addLocalNixPackageToGhcPath = do
-  lookupEnv "NIX_BUILD_TOP" >>= \case
-    Nothing -> pure ()
-    Just _ -> do
-      pkgDb <- makeAbsolute ("dist" </> "package.conf.inplace")
-      ghcPackagePath <- fromMaybe "" <$> lookupEnv gHC_PACKAGE_PATH
-
-      -- Don't add package db if it is already mentioned on path
-      unless ((pkgDb ++ ":") `isInfixOf` ghcPackagePath) $
-        -- Only add package db if it exists on disk
-        whenM (doesDirectoryExist pkgDb) $
-          setEnv gHC_PACKAGE_PATH (pkgDb ++ ":" ++ ghcPackagePath)
-
 -- | Run doctest for given library and config. Produce a summary of all tests.
 run :: Library -> Config -> IO Summary
 run lib Config{..} = do
-  when cfgNix addLocalNixPackageToGhcPath
+  nixGhciArgs <- ifM (pure cfgNix) getNixGhciArgs (pure [])
 
   let
     implicitPrelude = DisableExtension ImplicitPrelude `notElem` libDefaultExtensions lib
     (includeArgs, moduleArgs, otherGhciArgs) = libraryToGhciArgs lib
-    evalGhciArgs = otherGhciArgs ++ ["-XNoImplicitPrelude"]
-
-    -- Nix doesn't always expose the GHC library (_specifically_ the GHC lib) even
-    -- if a package lists it as a dependency. This simply always exposes it as a
-    -- workaround.
-    nixGhciArgs
-      | cfgNix = ["-package", "ghc"]
-      | otherwise = []
+    evalGhciArgs = otherGhciArgs ++ ["-XNoImplicitPrelude"] ++ nixGhciArgs
+    parseGhciArgs = includeArgs ++ moduleArgs ++ otherGhciArgs ++ nixGhciArgs
 
   modConfig <- setSeed cfgQuiet cfgModuleConfig
 
   -- get examples from Haddock comments
-  allModules <- getDocTests (includeArgs ++ moduleArgs ++ otherGhciArgs ++ nixGhciArgs)
+  allModules <- getDocTests parseGhciArgs
   runModules
     modConfig cfgThreads cfgVerbose implicitPrelude evalGhciArgs
     cfgQuiet (filterModules cfgModules allModules)

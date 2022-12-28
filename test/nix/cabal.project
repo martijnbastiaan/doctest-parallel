@@ -1,0 +1,5 @@
+packages:
+  .
+
+-- Nix projects don't need environment files!
+write-ghc-environment-files: never
