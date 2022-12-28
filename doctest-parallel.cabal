@@ -66,9 +66,7 @@ source-repository head
 
 library
   ghc-options: -Wall
-  hs-source-dirs:
-      src
-      ghci-wrapper/src
+  hs-source-dirs: src
   exposed-modules:
       Test.DocTest
       Test.DocTest.Helpers
@@ -177,6 +175,7 @@ test-suite spectests
   main-is: Spec.hs
   other-modules:
       ExtractSpec
+      GhciWrapperSpec
       InterpreterSpec
       LocationSpec
       MainSpec
@@ -192,8 +191,6 @@ test-suite spectests
   cpp-options: -DTEST
   hs-source-dirs:
       test
-  build-tool-depends:
-    hspec-discover:hspec-discover
   build-depends:
       HUnit
     , QuickCheck >=2.13.1
@@ -210,7 +207,6 @@ test-suite spectests
     , ghc-paths >=0.1.0.9
     , hspec >=2.3.0
     , hspec-core >=2.3.0
-    , hspec-discover
     , mockery
     , process
     , setenv

@@ -13,11 +13,11 @@ jobs:
   # Stack
   stack:
     name: ${{ matrix.os }} / Stack / ${{ matrix.resolver }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         os: ["macOS", "windows", "ubuntu"]
-        resolver: ["lts-19.5"]
+        resolver: ["lts-20.04"]
       fail-fast: false
     steps:
       - name: Checkout
@@ -58,23 +58,23 @@ jobs:
   # Cabal
   cabal:
     name: ${{ matrix.os }} / Cabal / GHC ${{ matrix.ghc }}
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macOS", "windows", "ubuntu"]
+        os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
         ghc: ["9.4.3", "9.2.5", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4", "8.2.2"]
         exclude:
           # Windows gets stuck while running the testsuite, but this is not a
           # doctest-parallel failure
-          - os: windows
+          - os: windows-latest
             ghc: 8.8.4
 
           # Chocolaty fails, see https://github.com/haskell/actions/issues/129
-          - os: windows
+          - os: windows-latest
             ghc: 9.4.3
 
           # Chocolaty fails, see https://github.com/haskell/actions/issues/129
-          - os: windows
+          - os: windows-latest
             ghc: 9.2.5
 
         # Uncomment if testing with an unreleased GHC. Make sure to edit the
@@ -120,7 +120,7 @@ jobs:
       - name: Build
         run: |
           cabal v2-update
-          cabal v2-build all
+          cabal v2-build all --enable-tests
 
       - name: Test - doctests
         run: |
@@ -138,7 +138,7 @@ jobs:
           cabal v2-run doctests
 
   nix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - uses: cachix/install-nix-action@v18
@@ -154,6 +154,62 @@ jobs:
         nix-shell --pure --run "cabal run doctests --write-ghc-environment-files=always"
         nix-shell --pure --run "cabal test --write-ghc-environment-files=always"
 
+  hls:
+    name: HLS
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        tools:
+          - {ghc: "9.0.2", cabal: "3.8.1.0", hls: "1.8.0.0", ghcup: "0.1.18.0"}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Haskell
+        run: |
+          sudo apt-get update
+          sudo apt-get install curl -y
+          sudo apt-get install \
+            build-essential curl libffi-dev libffi8ubuntu1 libgmp-dev \
+            libgmp10 libncurses-dev libncurses5 libtinfo5 -y
+
+          sudo curl "https://downloads.haskell.org/~ghcup/${{ matrix.tools.ghcup }}/x86_64-linux-ghcup-${{ matrix.tools.ghcup }}" --output /usr/bin/ghcup
+          sudo chmod +x /usr/bin/ghcup
+
+          ghcup install ghc ${{ matrix.tools.ghc }} --set --force
+          ghcup install cabal ${{ matrix.tools.cabal }} --set --force
+          ghcup install hls ${{ matrix.tools.hls }} --set --force
+
+          cabal update
+
+          echo "${HOME}/.ghcup/bin/" >> $GITHUB_PATH
+          ls "${HOME}/.ghcup/bin/"
+
+      - name: Setup CI
+        run: |
+          echo $PATH
+          cabal v2-freeze
+          mv cabal.project.freeze frozen
+
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: $HOME/.cabal/store
+          key: ${{ runner.os }}-cachebust1-hls-${{ matrix.tools.ghc }}-${{ matrix.tools.cabal }}-${{ matrix.tools.hls }}-${{ matrix.tools.ghcup }}-${{ hashFiles('frozen') }}
+          restore-keys: |
+            ${{ runner.os }}-cachebust1-hls-${{ matrix.tools.ghc }}-${{ matrix.tools.cabal }}-${{ matrix.tools.hls }}-${{ matrix.tools.ghcup }}-${{ hashFiles('frozen') }}
+            ${{ runner.os }}-cachebust1-hls-${{ matrix.tools.ghc }}-${{ matrix.tools.cabal }}-${{ matrix.tools.hls }}-${{ matrix.tools.ghcup }}-
+
+      - name: Build
+        run: |
+          cabal v2-update
+          cabal v2-build all --enable-tests --only-dependencies
+
+      - name: Run haskell-language-server-wrapper
+        run: |
+          (haskell-language-server-${{ matrix.tools.ghc }}~${{ matrix.tools.hls }} || true) |& tee hls-log
+          .github/scripts/parse_hls_log.py hls-log
+
   # Mandatory check on GitHub
   all:
     name: All jobs finished
@@ -162,6 +218,7 @@ jobs:
         cabal,
         stack,
         nix,
+        hls,
       ]
     runs-on: ubuntu-22.04
     steps:
