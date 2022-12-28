@@ -6,7 +6,7 @@ import           Test.Hspec
 import           System.IO.Silently
 
 import           Control.Exception
-import           Data.List (isSuffixOf, isInfixOf)
+import           Data.List (isInfixOf)
 
 import           Language.Haskell.GhciWrapper (Interpreter, Config(..), defaultConfig)
 import qualified Language.Haskell.GhciWrapper as Interpreter
