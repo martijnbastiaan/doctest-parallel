@@ -1,5 +1,6 @@
 # Unreleased
  * Add support for Nix shell environments ([#58](https://github.com/martijnbastiaan/doctest-parallel/pull/58))
+ * `Language.Haskell.GhciWrapper` has been moved to `Test.DocTest.Internal.GhciWrapper`. This module was never intended to be part of the public API. ([#61](https://github.com/martijnbastiaan/doctest-parallel/pull/61))
 
 # 0.2.6
   * `getNumProcessors` is now used to detect the (default) number of GHCi subprocesses to spawn. This should more reliably use all of a system's resources. Fixes [#53](https://github.com/martijnbastiaan/doctest-parallel/issues/53).
