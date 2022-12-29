@@ -11,6 +11,7 @@ import           Prelude.Compat
 import           Control.DeepSeq (NFData)
 import           Data.List.Compat
 import           GHC.Generics (Generic)
+import           Text.Read (readMaybe)
 
 import qualified Paths_doctest_parallel
 import           Data.Version (showVersion)
@@ -23,7 +24,8 @@ import           GHC.Settings.Config as GHC
 
 import           Test.DocTest.Internal.Location (Located (Located), Location)
 import           Test.DocTest.Internal.Interpreter (ghc)
-import           Text.Read (readMaybe)
+import           Test.DocTest.Internal.Logging (LogLevel(..))
+import qualified Test.DocTest.Internal.Logging as Logging
 
 usage :: String
 usage = unlines [
@@ -35,13 +37,15 @@ usage = unlines [
   , ""
   , "Options:"
   , "   -jN                      number of threads to use"
+  , "   --log-level=LEVEL        one of: debug, verbose, info, warning, error. Default: info."
   , "†  --implicit-module-import import module before testing it (default)"
   , "†  --randomize-order        randomize order in which tests are run"
   , "†  --seed=N                 use a specific seed to randomize test order"
   , "†  --preserve-it            preserve the `it` variable between examples"
   , "   --nix                    account for Nix build environments (default)"
-  , "   --verbose                print each test as it is run"
-  , "   --quiet                  only print errors"
+  , "   --quiet                  set log level to `Error`, shorthand for `--log-level=error`"
+  , "   --verbose                set log level to `Verbose`, shorthand for `--log-level=verbose`"
+  , "   --debug                  set log level to `Debug`, shorthand for `--log-level=debug`"
   , "   --help                   display this help and exit"
   , "   --version                output version information and exit"
   , "   --info                   output machine-readable version information and exit"
@@ -89,15 +93,13 @@ type Warning = String
 type ModuleName = String
 
 data Config = Config
-  { cfgVerbose :: Bool
-  -- ^ Verbose output (default: @False@)
+  { cfgLogLevel :: LogLevel
+  -- ^ Verbosity level.
   , cfgModules :: [ModuleName]
   -- ^ Module names to test. An empty list means "test all modules".
   , cfgThreads :: Maybe Int
   -- ^ Number of threads to use. Defaults to autodetection based on the number
   -- of cores.
-  , cfgQuiet :: Bool
-  -- ^ Only print error messages, no status or progress messages (default: @False@)
   , cfgModuleConfig :: ModuleConfig
   -- ^ Options specific to modules
   , cfgNix :: Bool
@@ -129,10 +131,9 @@ defaultModuleConfig = ModuleConfig
 
 defaultConfig :: Config
 defaultConfig = Config
-  { cfgVerbose = False
-  , cfgModules = []
+  { cfgModules = []
   , cfgThreads = Nothing
-  , cfgQuiet = False
+  , cfgLogLevel = Info
   , cfgModuleConfig = defaultModuleConfig
   , cfgNix = True
   }
@@ -171,11 +172,13 @@ parseOptions = go defaultConfig
       "--help" -> ResultStdout usage
       "--info" -> ResultStdout info
       "--version" -> ResultStdout versionInfo
-      "--verbose" -> go config{cfgVerbose=True} args
-      "--quiet" -> go config{cfgQuiet=True} args
+      "--quiet" -> go config{cfgLogLevel=Error} args
+      "--verbose" -> go config{cfgLogLevel=Verbose} args
+      "--debug" -> go config{cfgLogLevel=Debug} args
       "--nix" -> go config{cfgNix=True} args
       "--no-nix" -> go config{cfgNix=False} args
       ('-':_) | Just n <- parseThreads arg -> go config{cfgThreads=Just n} args
+      ('-':_) | Just l <- parseLogLevel arg -> go config{cfgLogLevel=l} args
       ('-':_)
         -- Module specific configuration options
         | Just modCfg <- parseModuleOption (cfgModuleConfig config) arg
@@ -193,6 +196,16 @@ parseOptions = go defaultConfig
 parseSeed :: String -> Maybe Int
 parseSeed arg = readMaybe =<< parseSpecificFlag arg "seed"
 
+-- | Parse seed argument
+--
+-- >>> parseLogLevel "--log-level=Debug"
+-- Just Debug
+-- >>> parseLogLevel "--log-level=debug"
+-- Just Debug
+-- >>> parseSeed "---log-level=debug"
+-- Nothing
+parseLogLevel  :: String -> Maybe LogLevel
+parseLogLevel arg = Logging.parseLogLevel =<< parseSpecificFlag arg "log-level"
 
 -- | Parse number of threads argument
 --

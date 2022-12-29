@@ -1,12 +1,13 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.DocTest.Internal.Runner where
 
 import           Prelude hiding (putStr, putStrLn, error)
 
-import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO)
+import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO, ThreadId, myThreadId)
 import           Control.Exception (SomeException, catch)
 import           Control.Monad hiding (forM_)
 import           Data.Foldable (forM_)
@@ -28,11 +29,12 @@ import           Test.DocTest.Internal.Options
   ( ModuleName, ModuleConfig (cfgPreserveIt), cfgSeed, cfgPreserveIt
   , cfgRandomizeOrder, cfgImplicitModuleImport, parseLocatedModuleOptions)
 import           Test.DocTest.Internal.Location
-import Test.DocTest.Internal.Property
-    ( runProperty, PropertyResult(Failure, Success, Error) )
+import qualified Test.DocTest.Internal.Property as Property
 import           Test.DocTest.Internal.Runner.Example
+import           Test.DocTest.Internal.Logging (LogLevel (..), formatLog, shouldLog)
 
 import           System.IO.CodePage (withCP65001)
+import Control.Monad.Extra (whenM)
 
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup
@@ -71,22 +73,19 @@ instance Semigroup Summary where
 
 -- | Run all examples from a list of modules.
 runModules
-  :: ModuleConfig
+  :: (?verbosity::LogLevel)
+  => ModuleConfig
   -- ^ Configuration options specific to module
   -> Maybe Int
   -- ^ Number of threads to use. Defaults to 'getNumProcessors'.
   -> Bool
-  -- ^ Verbose
-  -> Bool
   -- ^ Implicit Prelude
   -> [String]
   -- ^ Arguments passed to the GHCi process.
-  -> Bool
-  -- ^ Quiet mode activated
   -> [Module [Located DocTest]]
   -- ^ Modules under test
   -> IO Summary
-runModules modConfig nThreads verbose implicitPrelude args quiet modules = do
+runModules modConfig nThreads implicitPrelude args modules = do
   isInteractive <- hIsTerminalDevice stderr
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
@@ -104,33 +103,37 @@ runModules modConfig nThreads verbose implicitPrelude args quiet modules = do
     initState = ReportState
       { reportStateCount = 0
       , reportStateInteractive = isInteractive
-      , reportStateVerbose = verbose
-      , reportStateQuiet = quiet
       , reportStateSummary = mempty{sExamples=nExamples}
       }
 
+  threadId <- myThreadId
+  let ?threadId = threadId
+
   ReportState{reportStateSummary} <- (`execStateT` initState) $ do
     consumeUpdates output (length modules)
-    unless quiet $ do
-      verboseReport "# Final summary:"
-      gets (show . reportStateSummary) >>= report
+    gets (show . reportStateSummary) >>= report Info
 
   return reportStateSummary
  where
+  consumeUpdates ::
+    (?threadId :: ThreadId) =>
+    Chan (ThreadId, ReportUpdate) ->
+    Int ->
+    StateT ReportState IO ()
   consumeUpdates _output 0 = pure ()
   consumeUpdates output modsLeft = do
-    update <- liftIO (readChan output)
+    (threadId, update) <- liftIO (readChan output)
+    let ?threadId = threadId
     consumeUpdates output =<<
       case update of
         UpdateInternalError fs loc e -> reportInternalError fs loc e >> pure (modsLeft - 1)
         UpdateImportError modName result -> reportImportError modName result >> pure (modsLeft - 1)
-        UpdateSuccess fs loc -> reportSuccess fs loc >> reportProgress >> pure modsLeft
+        UpdateSuccess fs -> reportSuccess fs >> reportProgress >> pure modsLeft
         UpdateFailure fs loc expr errs -> reportFailure fs loc expr errs >> pure modsLeft
         UpdateError fs loc expr err -> reportError fs loc expr err >> pure modsLeft
         UpdateOptionError loc err -> reportOptionError loc err >> pure modsLeft
-        UpdateVerbose msg -> verboseReport msg >> pure modsLeft
-        UpdateStart loc expr msg -> reportStart loc expr msg >> pure modsLeft
         UpdateModuleDone -> pure (modsLeft - 1)
+        UpdateLog lvl msg -> report lvl msg >> pure modsLeft
 
 -- | Count number of expressions in given module.
 count :: Module [Located DocTest] -> Int
@@ -142,30 +145,36 @@ type Report = StateT ReportState IO
 data ReportState = ReportState {
   reportStateCount        :: Int     -- ^ characters on the current line
 , reportStateInteractive  :: Bool    -- ^ should intermediate results be printed?
-, reportStateVerbose      :: Bool
-, reportStateQuiet        :: Bool
 , reportStateSummary      :: Summary -- ^ test summary
 }
 
 -- | Add output to the report.
-report :: String -> Report ()
-report msg = do
-  overwrite msg
+report ::
+  ( ?verbosity :: LogLevel
+  , ?threadId :: ThreadId
+  ) =>
+  LogLevel ->
+  String ->
+  Report ()
+report lvl msg0 =
+  when (shouldLog lvl) $ do
+    let msg1 = formatLog ?threadId lvl msg0
+    overwrite msg1
 
-  -- add a newline, this makes the output permanent
-  liftIO $ hPutStrLn stderr ""
-  modify (\st -> st {reportStateCount = 0})
+    -- add a newline, this makes the output permanent
+    liftIO $ hPutStrLn stderr ""
+    modify (\st -> st {reportStateCount = 0})
 
 -- | Add intermediate output to the report.
 --
 -- This will be overwritten by subsequent calls to `report`/`report_`.
 -- Intermediate out may not contain any newlines.
-report_ :: String -> Report ()
-report_ msg = do
-  f <- gets reportStateInteractive
-  when f $ do
-    overwrite msg
-    modify (\st -> st {reportStateCount = length msg})
+report_ :: (?verbosity :: LogLevel) => LogLevel -> String -> Report ()
+report_ lvl msg =
+  when (shouldLog lvl) $ do
+    whenM (gets reportStateInteractive) $ do
+      overwrite msg
+      modify (\st -> st {reportStateCount = length msg})
 
 -- | Add output to the report, overwrite any intermediate out.
 overwrite :: String -> Report ()
@@ -187,13 +196,16 @@ runModule
   :: ModuleConfig
   -> Bool
   -> [String]
-  -> Chan ReportUpdate
+  -> Chan (ThreadId, ReportUpdate)
   -> Module [Located DocTest]
   -> IO ()
 runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
+  threadId <- myThreadId
+  let update r = writeChan output (threadId, r)
+
   case modConfig2 of
     Left (loc, flag) ->
-      writeChan output (UpdateOptionError loc flag)
+      update (UpdateOptionError loc flag)
 
     Right modConfig3 -> do
       let
@@ -228,7 +240,8 @@ runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
             Example e _ -> void $ safeEvalWith preserveIt repl e
 
 
-      Interpreter.withInterpreter ghciArgs $ \repl -> withCP65001 $ do
+      let logger = update . UpdateLog Debug
+      Interpreter.withInterpreter logger ghciArgs $ \repl -> withCP65001 $ do
         -- Try to import this module, if it fails, something is off
         importResult <-
           case importModule of
@@ -240,20 +253,20 @@ runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
             -- Run setup group
             successes <-
               mapM
-                (runTestGroup FromSetup preserveIt repl (reload repl) output)
+                (runTestGroup FromSetup preserveIt repl (reload repl) update)
                 setup
 
             -- only run tests, if setup does not produce any errors/failures
             when
               (and successes)
               (mapM_
-                (runTestGroup NotFromSetup preserveIt repl (setup_ repl) output)
+                (runTestGroup NotFromSetup preserveIt repl (setup_ repl) update)
                 examples1)
           _ ->
-            writeChan output (UpdateImportError module_ importResult)
+            update (UpdateImportError module_ importResult)
 
   -- Signal main thread a module has been tested
-  writeChan output UpdateModuleDone
+  update UpdateModuleDone
 
   pure ()
 
@@ -262,137 +275,112 @@ runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
   modConfig2 = parseLocatedModuleOptions module_ modConfig0 modArgs
 
 data ReportUpdate
-  = UpdateSuccess FromSetup Location
+  = UpdateSuccess FromSetup
   -- ^ Test succeeded
   | UpdateFailure FromSetup Location Expression [String]
   -- ^ Test failed with unexpected result
   | UpdateError FromSetup Location Expression String
   -- ^ Test failed with an error
-  | UpdateVerbose String
-  -- ^ Message to send when verbose output is activated
   | UpdateModuleDone
   -- ^ All examples tested in module
-  | UpdateStart Location Expression String
-  -- ^ Indicate test has started executing (verbose output)
   | UpdateInternalError FromSetup (Module [Located DocTest]) SomeException
   -- ^ Exception caught while executing internal code
   | UpdateImportError ModuleName (Either String String)
   -- ^ Could not import module
   | UpdateOptionError Location String
   -- ^ Unrecognized flag in module specific option
+  | UpdateLog LogLevel String
+  -- ^ Unstructured message
 
 makeThreadPool ::
   Int ->
-  (Chan ReportUpdate -> Module [Located DocTest] -> IO ()) ->
-  IO (Chan (Module [Located DocTest]), Chan ReportUpdate)
+  (Chan (ThreadId, ReportUpdate) -> Module [Located DocTest] -> IO ()) ->
+  IO (Chan (Module [Located DocTest]), Chan (ThreadId, ReportUpdate))
 makeThreadPool nThreads mutator = do
   input <- newChan
   output <- newChan
   forM_ [1..nThreads] $ \_ ->
     forkIO $ forever $ do
       i <- readChan input
+      threadId <- myThreadId
       catch
         (mutator output i)
-        (\e -> writeChan output (UpdateInternalError NotFromSetup i e))
+        (\e -> writeChan output (threadId, UpdateInternalError NotFromSetup i e))
   return (input, output)
 
-reportStart :: Location -> Expression -> String -> Report ()
-reportStart loc expression testType = do
-  quiet <- gets reportStateQuiet
-  unless quiet $
-    verboseReport
-      (printf "### Started execution at %s.\n### %s:\n%s" (show loc) testType expression)
-
-reportFailure :: FromSetup -> Location -> Expression -> [String] -> Report ()
+reportFailure :: (?verbosity::LogLevel, ?threadId::ThreadId) => FromSetup -> Location -> Expression -> [String] -> Report ()
 reportFailure fromSetup loc expression err = do
-  report (printf "%s: failure in expression `%s'" (show loc) expression)
-  mapM_ report err
-  report ""
+  report Error (printf "%s: failure in expression `%s'" (show loc) expression)
+  mapM_ (report Error) err
+  report Error ""
   updateSummary fromSetup (Summary 0 1 0 1)
 
-reportError :: FromSetup -> Location -> Expression -> String -> Report ()
+reportError :: (?verbosity::LogLevel, ?threadId::ThreadId) => FromSetup -> Location -> Expression -> String -> Report ()
 reportError fromSetup loc expression err = do
-  report (printf "%s: error in expression `%s'" (show loc) expression)
-  report err
-  report ""
+  report Error (printf "%s: error in expression `%s'" (show loc) expression)
+  report Error err
+  report Error ""
   updateSummary fromSetup (Summary 0 1 1 0)
 
-reportOptionError :: Location -> String -> Report ()
+reportOptionError :: (?verbosity::LogLevel, ?threadId::ThreadId) => Location -> String -> Report ()
 reportOptionError loc opt = do
-  report (printf "%s: unrecognized option: %s. Try --help to see all options." (show loc) opt)
-  report ""
+  report Error (printf "%s: unrecognized option: %s. Try --help to see all options." (show loc) opt)
+  report Error ""
   updateSummary FromSetup (Summary 0 1 1 0)
 
-reportInternalError :: FromSetup -> Module a -> SomeException -> Report ()
+reportInternalError :: (?verbosity::LogLevel, ?threadId::ThreadId) => FromSetup -> Module a -> SomeException -> Report ()
 reportInternalError fs mod_ err = do
-  report (printf "Internal error when executing tests in %s" (moduleName mod_))
-  report (show err)
-  report ""
+  report Error (printf "Internal error when executing tests in %s" (moduleName mod_))
+  report Error (show err)
+  report Error ""
   updateSummary fs emptySummary{sErrors=1}
 
-reportImportError :: ModuleName -> Either String String -> Report ()
+reportImportError :: (?verbosity::LogLevel, ?threadId::ThreadId) => ModuleName -> Either String String -> Report ()
 reportImportError modName importResult = do
-  report ("Could not import module: " <> modName <> ". This can be caused by a number of issues: ")
-  report ""
-  report " 1. A module found by GHC contained tests, but was not in 'exposed-modules'. If you want"
-  report "    to test non-exposed modules follow the instructions here:"
-  report "    https://github.com/martijnbastiaan/doctest-parallel#test-non-exposed-modules"
-  report ""
-  report " 2. For Cabal users: Cabal did not generate a GHC environment file. Either:"
-  report "   * Run with '--write-ghc-environment-files=always'"
-  report "   * Add 'write-ghc-environment-files: always' to your cabal.project"
-  report ""
-  report " 3. For Cabal users: Cabal did not generate a GHC environment file in time. This"
-  report "    can happen if you use 'cabal test' instead of 'cabal run doctests'. See"
-  report "    https://github.com/martijnbastiaan/doctest-parallel/issues/22."
-  report ""
-  report " 4. The testsuite executable does not have a dependency on your project library. Please"
-  report "    add it to the 'build-depends' section of the testsuite executable."
-  report ""
-  report "See the example project at https://github.com/martijnbastiaan/doctest-parallel/blob/main/example/README.md for more information."
-  report ""
-  report "The original reason given by GHCi was:"
-  report ""
+  report Error ("Could not import module: " <> modName <> ". This can be caused by a number of issues: ")
+  report Error ""
+  report Error " 1. A module found by GHC contained tests, but was not in 'exposed-modules'. If you want"
+  report Error "    to test non-exposed modules follow the instructions here:"
+  report Error "    https://github.com/martijnbastiaan/doctest-parallel#test-non-exposed-modules"
+  report Error ""
+  report Error " 2. For Cabal users: Cabal did not generate a GHC environment file. Either:"
+  report Error "   * Run with '--write-ghc-environment-files=always'"
+  report Error "   * Add 'write-ghc-environment-files: always' to your cabal.project"
+  report Error ""
+  report Error " 3. For Cabal users: Cabal did not generate a GHC environment file in time. This"
+  report Error "    can happen if you use 'cabal test' instead of 'cabal run doctests'. See"
+  report Error "    https://github.com/martijnbastiaan/doctest-parallel/issues/22."
+  report Error ""
+  report Error " 4. The testsuite executable does not have a dependency on your project library. Please"
+  report Error "    add it to the 'build-depends' section of the testsuite executable."
+  report Error ""
+  report Error "See the example project at https://github.com/martijnbastiaan/doctest-parallel/blob/main/example/README.md for more information."
+  report Error ""
+  report Error "The original reason given by GHCi was:"
+  report Error ""
   case importResult of
     Left out -> do
-      report "Unexpected output:"
-      report out
+      report Error "Unexpected output:"
+      report Error out
     Right err -> do
-      report "Error:"
-      report err
+      report Error "Error:"
+      report Error err
 
   updateSummary FromSetup emptySummary{sErrors=1}
 
-reportSuccess :: FromSetup -> Location -> Report ()
-reportSuccess fromSetup loc = do
-  quiet <- gets reportStateQuiet
-  unless quiet $
-    verboseReport (printf "### Successful `%s'!\n" (show loc))
-  updateSummary fromSetup (Summary 0 1 0 0)
-
-verboseReport :: String -> Report ()
-verboseReport xs = do
-  verbose <- gets reportStateVerbose
-  quiet <- gets reportStateQuiet
-  unless quiet $
-    when verbose $
-      report xs
+reportSuccess :: (?verbosity::LogLevel, ?threadId::ThreadId) => FromSetup -> Report ()
+reportSuccess fromSetup = updateSummary fromSetup (Summary 0 1 0 0)
 
 updateSummary :: FromSetup -> Summary -> Report ()
 updateSummary FromSetup summary =
   -- Suppress counts, except for errors and unexpected outputs
   updateSummary NotFromSetup summary{sExamples=0, sTried=0}
 updateSummary NotFromSetup summary = do
-  ReportState n f v q s <- get
-  put (ReportState n f v q $ s `mappend` summary)
+  ReportState n f s <- get
+  put (ReportState n f $ s `mappend` summary)
 
-reportProgress :: Report ()
-reportProgress = do
-  verbose <- gets reportStateVerbose
-  quiet <- gets reportStateQuiet
-  unless quiet $
-    unless verbose $
-      gets (show . reportStateSummary) >>= report_
+reportProgress :: (?verbosity::LogLevel) => Report ()
+reportProgress = gets (show . reportStateSummary) >>= report_ Info
 
 -- | Run given test group.
 --
@@ -403,29 +391,28 @@ runTestGroup ::
   Bool ->
   Interpreter ->
   IO () ->
-  Chan ReportUpdate ->
+  (ReportUpdate -> IO ()) ->
   [Located DocTest] ->
   IO Bool
-runTestGroup fromSetup preserveIt repl setup output tests = do
-
+runTestGroup fromSetup preserveIt repl setup update tests = do
   setup
-  successExamples <- runExampleGroup fromSetup preserveIt repl output examples
+  successExamples <- runExampleGroup fromSetup preserveIt repl update examples
 
   successesProperties <- forM properties $ \(loc, expression) -> do
     r <- do
       setup
-      writeChan output (UpdateStart loc expression "property")
-      runProperty repl expression
+      update (UpdateLog Verbose ("Started property at " ++ show loc))
+      Property.runProperty repl expression
 
     case r of
-      Success -> do
-        writeChan output (UpdateSuccess fromSetup loc)
+      Property.Success -> do
+        update (UpdateSuccess fromSetup)
         pure True
-      Error err -> do
-        writeChan output (UpdateError fromSetup loc expression err)
+      Property.Error err -> do
+        update (UpdateError fromSetup loc expression err)
         pure False
-      Failure msg -> do
-        writeChan output (UpdateFailure fromSetup loc expression [msg])
+      Property.Failure msg -> do
+        update (UpdateFailure fromSetup loc expression [msg])
         pure False
 
   pure (successExamples && and successesProperties)
@@ -442,26 +429,28 @@ runExampleGroup ::
   FromSetup ->
   Bool ->
   Interpreter ->
-  Chan ReportUpdate ->
+  (ReportUpdate -> IO ()) ->
   [Located Interaction] ->
   IO Bool
-runExampleGroup fromSetup preserveIt repl output = go
+runExampleGroup fromSetup preserveIt repl update examples = do
+  threadId <- myThreadId
+  go threadId examples
   where
-    go ((Located loc (expression, expected)) : xs) = do
-      writeChan output (UpdateStart loc expression "example")
+    go threadId ((Located loc (expression, expected)) : xs) = do
+      update (UpdateLog Verbose ("Started example at " ++ show loc))
       r <- fmap lines <$> safeEvalWith preserveIt repl expression
       case r of
         Left err -> do
-          writeChan output (UpdateError fromSetup loc expression err)
+          update (UpdateError fromSetup loc expression err)
           pure False
         Right actual -> case mkResult expected actual of
           NotEqual err -> do
-            writeChan output (UpdateFailure fromSetup loc expression err)
+            update (UpdateFailure fromSetup loc expression err)
             pure False
           Equal -> do
-            writeChan output (UpdateSuccess fromSetup loc)
-            go xs
-    go [] =
+            update (UpdateSuccess fromSetup)
+            go threadId xs
+    go _ [] =
       pure True
 
 safeEvalWith :: Bool -> Interpreter -> String -> IO (Either String String)

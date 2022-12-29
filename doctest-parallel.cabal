@@ -75,6 +75,7 @@ library
       Test.DocTest.Internal.GhcUtil
       Test.DocTest.Internal.Interpreter
       Test.DocTest.Internal.Location
+      Test.DocTest.Internal.Logging
       Test.DocTest.Internal.Nix
       Test.DocTest.Internal.Options
       Test.DocTest.Internal.Parse

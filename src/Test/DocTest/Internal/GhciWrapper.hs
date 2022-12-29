@@ -13,13 +13,15 @@ module Test.DocTest.Internal.GhciWrapper (
 , evalEcho
 ) where
 
-import           System.IO hiding (stdin, stdout, stderr)
-import           System.Process
-import           System.Exit
-import           Control.Monad
-import           Control.Exception
-import           Data.List
-import           Data.Maybe
+import System.IO hiding (stdin, stdout, stderr)
+import System.Process
+import System.Exit
+import Control.Monad
+import Control.Exception
+import Data.List
+import Data.Maybe
+
+import Test.DocTest.Internal.Logging (DebugLogger)
 
 data Config = Config {
   configGhci :: String
@@ -49,14 +51,22 @@ data Interpreter = Interpreter {
     hIn  :: Handle
   , hOut :: Handle
   , process :: ProcessHandle
+  , logger :: DebugLogger
   }
 
-new :: Config -> [String] -> IO Interpreter
-new Config{..} args_ = do
+new :: DebugLogger -> Config -> [String] -> IO Interpreter
+new logger Config{..} args_ = do
+  logger ("Calling: " ++ unwords (configGhci:args))
   (Just stdin_, Just stdout_, Nothing, processHandle ) <- createProcess $ (proc configGhci args) {std_in = CreatePipe, std_out = CreatePipe, std_err = Inherit}
   setMode stdin_
   setMode stdout_
-  let interpreter = Interpreter {hIn = stdin_, hOut = stdout_, process = processHandle}
+  let
+    interpreter = Interpreter
+      { hIn = stdin_
+      , hOut = stdout_
+      , process = processHandle
+      , logger=logger
+      }
   _ <- eval interpreter "import qualified System.IO"
   _ <- eval interpreter "import qualified GHC.IO.Handle"
   -- The buffering of stdout and stderr is NoBuffering
@@ -69,8 +79,8 @@ new Config{..} args_ = do
 
   -- this is required on systems that don't use utf8 as default encoding (e.g.
   -- Windows)
-  _ <- eval interpreter "GHC.IO.Handle.hSetEncoding System.IO.stdout GHC.IO.Handle.utf8"
-  _ <- eval interpreter "GHC.IO.Handle.hSetEncoding System.IO.stderr GHC.IO.Handle.utf8"
+  _ <- eval interpreter "GHC.IO.Handle.hSetEncoding System.IO.stdout System.IO.utf8"
+  _ <- eval interpreter "GHC.IO.Handle.hSetEncoding System.IO.stderr System.IO.utf8"
 
   _ <- eval interpreter ":m - System.IO"
   _ <- eval interpreter ":m - GHC.IO.Handle"
@@ -102,15 +112,29 @@ close repl = do
     throwIO (userError $ "Test.DocTest.Internal.GhciWrapper.close: Interpreter exited with an error (" ++ show e ++ ")")
 
 putExpression :: Interpreter -> Bool -> String -> IO ()
-putExpression Interpreter{hIn = stdin} preserveIt e = do
+putExpression Interpreter{logger = logger, hIn = stdin} preserveIt e = do
+  logger (">>> " ++ e)
   hPutStrLn stdin e
-  when preserveIt $ hPutStrLn stdin $ "let " ++ itMarker ++ " = it"
+
+  when preserveIt $ do
+    let e1 = "let " ++ itMarker ++ " = it"
+    logger (">>> " ++ e1)
+    hPutStrLn stdin e1
+
   hPutStrLn stdin (marker ++ " :: Data.String.String")
-  when preserveIt $ hPutStrLn stdin $ "let it = " ++ itMarker
+
+  when preserveIt $ do
+    let e3 = "let it = " ++ itMarker
+    logger (">>> " ++ e3)
+    hPutStrLn stdin e3
+
   hFlush stdin
 
 getResult :: Bool -> Interpreter -> IO String
-getResult echoMode Interpreter{hOut = stdout} = go
+getResult echoMode Interpreter{logger = logger, hOut = stdout} = do
+  result <- go
+  unless (result == mempty) $ logger result
+  pure result
   where
     go = do
       line <- hGetLine stdout

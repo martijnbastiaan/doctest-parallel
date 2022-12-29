@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -20,6 +21,7 @@ import           Prelude ()
 import           Prelude.Compat
 
 import qualified Data.Set as Set
+import           Data.List (intercalate)
 
 import           Control.Monad (unless)
 import           Control.Monad.Extra (ifM)
@@ -48,6 +50,9 @@ import Distribution.Simple
 import Test.DocTest.Helpers
   ( Library (libDefaultExtensions), extractCabalLibrary, findCabalPackage
   , libraryToGhciArgs )
+import Test.DocTest.Internal.Logging (LogLevel(..))
+
+import qualified Test.DocTest.Internal.Logging as Logging
 
 -- | Run doctest with given list of arguments.
 --
@@ -117,14 +122,13 @@ filterModules wantedMods0 allMods0
   nonExistingMods = Set.toList (wantedMods1 `Set.difference` allMods1)
   isSpecifiedMod Module{moduleName} = moduleName `Set.member` wantedMods1
 
-setSeed :: Bool -> ModuleConfig -> IO ModuleConfig
-setSeed quiet cfg@ModuleConfig{cfgRandomizeOrder=True, cfgSeed=Nothing} = do
+setSeed :: (?verbosity :: LogLevel) => ModuleConfig -> IO ModuleConfig
+setSeed cfg@ModuleConfig{cfgRandomizeOrder=True, cfgSeed=Nothing} = do
   -- Using an absolute number to prevent copy+paste errors
   seed <- abs <$> randomIO
-  unless quiet $
-    putStrLn ("Using freshly generated seed to randomize test order: " <> show seed)
+  Logging.log Info ("Using freshly generated seed to randomize test order: " <> show seed)
   pure cfg{cfgSeed=Just seed}
-setSeed _quiet cfg = pure cfg
+setSeed cfg = pure cfg
 
 -- | Run doctest for given library and config. Produce a summary of all tests.
 run :: Library -> Config -> IO Summary
@@ -137,10 +141,20 @@ run lib Config{..} = do
     evalGhciArgs = otherGhciArgs ++ ["-XNoImplicitPrelude"] ++ nixGhciArgs
     parseGhciArgs = includeArgs ++ moduleArgs ++ otherGhciArgs ++ nixGhciArgs
 
-  modConfig <- setSeed cfgQuiet cfgModuleConfig
+  let
+    ?verbosity = cfgLogLevel
 
-  -- get examples from Haddock comments
+  modConfig <- setSeed cfgModuleConfig
+
+  -- Get examples from Haddock comments
+  Logging.log Verbose "Parsing comments.."
+  Logging.log Debug ("Calling GHC API with: " <> unwords parseGhciArgs)
   allModules <- getDocTests parseGhciArgs
-  runModules
-    modConfig cfgThreads cfgVerbose implicitPrelude evalGhciArgs
-    cfgQuiet (filterModules cfgModules allModules)
+
+  -- Run tests
+  Logging.log Verbose "Running examples.."
+  let
+    filteredModules = filterModules cfgModules allModules
+    filteredModulesMsg = intercalate ", " (map moduleName filteredModules)
+  Logging.log Debug ("Running examples in modules: " <> filteredModulesMsg)
+  runModules modConfig cfgThreads implicitPrelude evalGhciArgs filteredModules
