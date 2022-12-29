@@ -85,6 +85,8 @@ library
   autogen-modules:
       Paths_doctest_parallel
   other-modules:
+      Control.Monad.Extra
+      Data.List.Extra
       Paths_doctest_parallel
   build-depends:
       Cabal >= 2.4 && < 3.9
@@ -96,7 +98,6 @@ library
     , deepseq
     , directory
     , exceptions
-    , extra
     , filepath
     , ghc >=8.2 && <9.5
     , ghc-paths >=0.1.0.9

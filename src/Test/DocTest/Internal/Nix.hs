@@ -3,7 +3,8 @@
 
 module Test.DocTest.Internal.Nix where
 
-import Control.Monad.Extra (ifM, msum)
+import Control.Monad (msum)
+import Control.Monad.Extra (ifM)
 import Control.Monad.Trans.Maybe
 import Data.Bool (bool)
 import Data.List (intercalate, isSuffixOf)
