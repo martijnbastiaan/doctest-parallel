@@ -161,6 +161,7 @@ jobs:
       matrix:
         tools:
           - {ghc: "9.0.2", cabal: "3.8.1.0", hls: "1.8.0.0", ghcup: "0.1.18.0"}
+          - {ghc: "9.4.4", cabal: "3.8.1.0", hls: "1.9.0.0", ghcup: "0.1.18.0"}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -207,7 +208,7 @@ jobs:
 
       - name: Run haskell-language-server-wrapper
         run: |
-          (haskell-language-server-${{ matrix.tools.ghc }}~${{ matrix.tools.hls }} || true) |& tee hls-log
+          (haskell-language-server-wrapper || true) |& tee hls-log
           .github/scripts/parse_hls_log.py hls-log
 
   # Mandatory check on GitHub
