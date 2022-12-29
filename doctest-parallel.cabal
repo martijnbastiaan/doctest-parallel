@@ -100,7 +100,6 @@ library
     , filepath
     , ghc >=8.2 && <9.5
     , ghc-paths >=0.1.0.9
-    , pretty
     , process
     , random >= 1.2
     , syb >=0.3
