@@ -20,10 +20,10 @@ import           Control.Exception hiding (handle)
 import           Data.Char
 import           GHC.Paths (ghc)
 
-import           Language.Haskell.GhciWrapper
+import           Test.DocTest.Internal.GhciWrapper
 
 -- $setup
--- >>> import Language.Haskell.GhciWrapper (eval)
+-- >>> import Test.DocTest.Internal.GhciWrapper (eval)
 
 haveInterpreterKey :: String
 haveInterpreterKey = "Have interpreter"

@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiWayIf #-}
 
-module Language.Haskell.GhciWrapper (
+module Test.DocTest.Internal.GhciWrapper (
   Interpreter
 , Config(..)
 , defaultConfig
@@ -99,7 +99,7 @@ close repl = do
   hClose $ hOut repl
 
   when (e /= ExitSuccess) $ do
-    throwIO (userError $ "Language.Haskell.GhciWrapper.close: Interpreter exited with an error (" ++ show e ++ ")")
+    throwIO (userError $ "Test.DocTest.Internal.GhciWrapper.close: Interpreter exited with an error (" ++ show e ++ ")")
 
 putExpression :: Interpreter -> Bool -> String -> IO ()
 putExpression Interpreter{hIn = stdin} preserveIt e = do

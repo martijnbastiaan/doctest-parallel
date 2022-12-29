@@ -71,6 +71,7 @@ library
       Test.DocTest
       Test.DocTest.Helpers
       Test.DocTest.Internal.Extract
+      Test.DocTest.Internal.GhciWrapper
       Test.DocTest.Internal.GhcUtil
       Test.DocTest.Internal.Interpreter
       Test.DocTest.Internal.Location
@@ -81,7 +82,6 @@ library
       Test.DocTest.Internal.Runner
       Test.DocTest.Internal.Runner.Example
       Test.DocTest.Internal.Util
-      Language.Haskell.GhciWrapper
   autogen-modules:
       Paths_doctest_parallel
   other-modules:

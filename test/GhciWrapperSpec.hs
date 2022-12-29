@@ -8,8 +8,8 @@ import           System.IO.Silently
 import           Control.Exception
 import           Data.List (isInfixOf)
 
-import           Language.Haskell.GhciWrapper (Interpreter, Config(..), defaultConfig)
-import qualified Language.Haskell.GhciWrapper as Interpreter
+import           Test.DocTest.Internal.GhciWrapper (Interpreter, Config(..), defaultConfig)
+import qualified Test.DocTest.Internal.GhciWrapper as Interpreter
 
 main :: IO ()
 main = hspec spec
