@@ -8,22 +8,24 @@ module Test.DocTest.Internal.Interpreter (
 , ghc
 , interpreterSupported
 
--- exported for testing
+-- * exported for testing
 , ghcInfo
 , haveInterpreterKey
 ) where
 
-import           System.Process
-import           System.Directory (getPermissions, executable)
-import           Control.Monad
-import           Control.Exception hiding (handle)
-import           Data.Char
-import           GHC.Paths (ghc)
+import System.Process
+import System.Directory (getPermissions, executable)
+import Control.Monad
+import Control.Exception hiding (handle)
+import Data.Char
+import GHC.Paths (ghc)
 
-import           Test.DocTest.Internal.GhciWrapper
+import Test.DocTest.Internal.GhciWrapper
+import Test.DocTest.Internal.Logging (DebugLogger)
 
 -- $setup
 -- >>> import Test.DocTest.Internal.GhciWrapper (eval)
+-- >>> import Test.DocTest.Internal.Logging (noLogger)
 
 haveInterpreterKey :: String
 haveInterpreterKey = "Have interpreter"
@@ -45,13 +47,14 @@ interpreterSupported = do
 --
 -- Example:
 --
--- >>> withInterpreter [] $ \i -> eval i "23 + 42"
+-- >>> withInterpreter noLogger [] $ \i -> eval i "23 + 42"
 -- "65\n"
 withInterpreter
-  :: [String]               -- ^ List of flags, passed to GHC
+  :: DebugLogger            -- ^ Debug logger
+  -> [String]               -- ^ List of flags, passed to GHC
   -> (Interpreter -> IO a)  -- ^ Action to run
   -> IO a                   -- ^ Result of action
-withInterpreter flags action = do
+withInterpreter logger flags action = do
   let
     args = flags ++ [
         "--interactive"
@@ -60,7 +63,7 @@ withInterpreter flags action = do
       , "-fno-diagnostics-show-caret"
 #endif
       ]
-  bracket (new defaultConfig{configGhci = ghc} args) close action
+  bracket (new logger defaultConfig{configGhci = ghc} args) close action
 
 -- | Evaluate an expression; return a Left value on exceptions.
 --

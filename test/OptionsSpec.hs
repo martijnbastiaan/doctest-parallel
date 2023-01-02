@@ -6,6 +6,7 @@ import           Prelude.Compat
 import           Test.Hspec
 
 import           Test.DocTest.Internal.Options
+import Test.DocTest.Internal.Logging (LogLevel(..))
 
 spec :: Spec
 spec = do
@@ -57,8 +58,8 @@ spec = do
     describe "--verbose" $ do
       context "without --verbose" $ do
         it "is not verbose by default" $ do
-          cfgVerbose <$> parseOptions [] `shouldBe` Result False
+          cfgLogLevel <$> parseOptions [] `shouldBe` Result Info
 
       context "with --verbose" $ do
         it "parses verbose option" $ do
-          cfgVerbose <$> parseOptions ["--verbose"] `shouldBe` Result True
+          cfgLogLevel <$> parseOptions ["--verbose"] `shouldBe` Result Verbose

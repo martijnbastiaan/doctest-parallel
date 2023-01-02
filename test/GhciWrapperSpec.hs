@@ -10,12 +10,13 @@ import           Data.List (isInfixOf)
 
 import           Test.DocTest.Internal.GhciWrapper (Interpreter, Config(..), defaultConfig)
 import qualified Test.DocTest.Internal.GhciWrapper as Interpreter
+import           Test.DocTest.Internal.Logging (noLogger)
 
 main :: IO ()
 main = hspec spec
 
 withInterpreterConfig :: Config -> (Interpreter -> IO a) -> IO a
-withInterpreterConfig config = bracket (Interpreter.new config []) Interpreter.close
+withInterpreterConfig config = bracket (Interpreter.new noLogger config []) Interpreter.close
 
 withInterpreter :: ((String -> IO String) -> IO a) -> IO a
 withInterpreter action = withInterpreterConfig defaultConfig $ action . Interpreter.eval
