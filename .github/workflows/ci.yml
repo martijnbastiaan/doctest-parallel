@@ -13,10 +13,10 @@ jobs:
   # Stack
   stack:
     name: ${{ matrix.os }} / Stack / ${{ matrix.resolver }}
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macOS", "windows", "ubuntu"]
+        os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
         resolver: ["lts-20.04"]
       fail-fast: false
     steps:
