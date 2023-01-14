@@ -50,9 +50,11 @@ import           FastString (unpackFS)
 #elif __GLASGOW_HASKELL__ < 902
 import           GHC.Data.FastString (unpackFS)
 import           GHC.Types.Basic (SourceText(SourceText))
+#elif __GLASGOW_HASKELL__ < 906
+import           GHC.Types.SourceText (SourceText(SourceText))
+import           GHC.Data.FastString (unpackFS)
 #else
 import           GHC.Data.FastString (unpackFS)
-import           GHC.Types.SourceText (SourceText(SourceText))
 #endif
 
 import           System.Posix.Internals (c_getpid)
@@ -258,8 +260,10 @@ docStringsFromModule mod =
   header :: [(Maybe String, LHsDocString)]
 #if __GLASGOW_HASKELL__ < 904
   header  = [(Nothing, x) | Just x <- [hsmodHaddockModHeader source]]
-#else
+#elif __GLASGOW_HASKELL__ < 906
   header = [(Nothing, hsDocString <$> x) | Just x <- [hsmodHaddockModHeader source]]
+#else
+  header = [(Nothing, hsDocString <$> x) | Just x <- [hsmodHaddockModHeader (hsmodExt source)]]
 #endif
 
   exports :: [(Maybe String, LHsDocString)]
@@ -301,8 +305,10 @@ extractModuleAnns = everythingBut (++) (([], False) `mkQ` fromLHsDecl)
   fromLHsDecl (L (locA -> loc) decl) = case decl of
 #if __GLASGOW_HASKELL__ < 805
     AnnD (HsAnnotation (SourceText _) ModuleAnnProvenance (L _loc expr))
-#else
+#elif __GLASGOW_HASKELL__ < 906
     AnnD _ (HsAnnotation _ (SourceText _) ModuleAnnProvenance (L _loc expr))
+#else
+    AnnD _ (HsAnnotation _ ModuleAnnProvenance (L _loc expr))
 #endif
      | Just s <- extractLit loc expr
      -> select s
