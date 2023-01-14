@@ -90,7 +90,7 @@ library
       Data.List.Extra
       Paths_doctest_parallel
   build-depends:
-      Cabal >= 2.4 && < 3.9
+      Cabal >= 2.4 && < 3.10
     , Glob
     , base >=4.10 && <5
     , base-compat >=0.7.0
@@ -100,7 +100,7 @@ library
     , directory
     , exceptions
     , filepath
-    , ghc >=8.2 && <9.5
+    , ghc >=8.2 && <9.7
     , ghc-paths >=0.1.0.9
     , process
     , random >= 1.2
