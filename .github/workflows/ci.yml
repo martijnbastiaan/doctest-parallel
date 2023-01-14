@@ -103,7 +103,7 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install -u https://downloads.haskell.org/ghc/9.6.1-alpha1/ghc-9.6.0.20230111-x86_64-deb9-linux.tar.xz ghc-head
           ghcup set ghc ghc-head
-          echo "::set-output name=cabal-store::$HOME/.cabal/store"
+          echo "cabal-store=$HOME/.cabal/store" >> $GITHUB_OUTPUT
 
       - name: Setup CI
         run: |
