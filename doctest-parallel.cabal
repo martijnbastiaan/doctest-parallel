@@ -1,7 +1,7 @@
 cabal-version: 2.0
 
 name:           doctest-parallel
-version:        0.2.6
+version:        0.3.0
 synopsis:       Test interactive Haskell examples
 description:    The doctest program checks examples in source code comments.  It is modeled
                 after doctest for Python (<https://docs.python.org/3/library/doctest.html>).
@@ -90,7 +90,7 @@ library
       Data.List.Extra
       Paths_doctest_parallel
   build-depends:
-      Cabal >= 2.4 && < 3.9
+      Cabal >= 2.4 && < 3.10
     , Glob
     , base >=4.10 && <5
     , base-compat >=0.7.0
@@ -100,7 +100,7 @@ library
     , directory
     , exceptions
     , filepath
-    , ghc-lib >=8.2 && <9.5
+    , ghc-lib >=8.2 && <9.7
     , ghc-paths >=0.1.0.9
     , process
     , random >= 1.2

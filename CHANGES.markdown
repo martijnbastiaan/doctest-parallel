@@ -1,4 +1,7 @@
 # Unreleased
+ * Add support for GHC 9.6
+
+# 0.3.0
  * Add support for Nix shell environments ([#58](https://github.com/martijnbastiaan/doctest-parallel/pull/58))
  * `Language.Haskell.GhciWrapper` has been moved to `Test.DocTest.Internal.GhciWrapper`. This module was never intended to be part of the public API. ([#61](https://github.com/martijnbastiaan/doctest-parallel/pull/61))
  * Add more elaborate debug options. You can now pass `--log-level=LEVEL` where `level` is one of `debug`, `verbose`, `info`, `warning`, or `error`. ([#14](https://github.com/martijnbastiaan/doctest-parallel/issues/14))

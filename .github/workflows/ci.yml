@@ -13,10 +13,10 @@ jobs:
   # Stack
   stack:
     name: ${{ matrix.os }} / Stack / ${{ matrix.resolver }}
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macOS", "windows", "ubuntu"]
+        os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
         resolver: ["lts-20.04"]
       fail-fast: false
     steps:
@@ -79,9 +79,9 @@ jobs:
 
         # Uncomment if testing with an unreleased GHC. Make sure to edit the
         #  "Setup Haskell (head)" step too.
-        # include:
-        #   - os: ubuntu
-        #     ghc: head
+        include:
+          - os: ubuntu-22.04
+            ghc: head
       fail-fast: false
     steps:
       - name: Checkout
@@ -98,10 +98,12 @@ jobs:
         if: matrix.ghc == 'head'
         id: setup-haskell-head
         run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl libffi-dev libffi8ubuntu1 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
-          ghcup install -u https://downloads.haskell.org/~ghc/9.4.1-rc1/ghc-9.4.0.20220721-x86_64-deb9-linux.tar.xz ghc-9.4.1
-          ghcup set ghc 9.4.1
-          echo "::set-output name=cabal-store::$HOME/.cabal/store"
+          ghcup install -u https://downloads.haskell.org/ghc/9.6.1-alpha1/ghc-9.6.0.20230111-x86_64-deb9-linux.tar.xz ghc-head
+          ghcup set ghc ghc-head
+          echo "cabal-store=$HOME/.cabal/store" >> $GITHUB_OUTPUT
 
       - name: Setup CI
         run: |
