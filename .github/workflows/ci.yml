@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
-        resolver: ["lts-20.04"]
+        resolver: ["lts-20.17"]
       fail-fast: false
     steps:
       - name: Checkout
@@ -62,26 +62,18 @@ jobs:
     strategy:
       matrix:
         os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
-        ghc: ["9.4.3", "9.2.5", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4", "8.2.2"]
+        ghc: ["9.6.1", "9.4.4", "9.2.7", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4", "8.2.2"]
         exclude:
           # Windows gets stuck while running the testsuite, but this is not a
           # doctest-parallel failure
           - os: windows-latest
             ghc: 8.8.4
 
-          # Chocolaty fails, see https://github.com/haskell/actions/issues/129
-          - os: windows-latest
-            ghc: 9.4.3
-
-          # Chocolaty fails, see https://github.com/haskell/actions/issues/129
-          - os: windows-latest
-            ghc: 9.2.5
-
-        # Uncomment if testing with an unreleased GHC. Make sure to edit the
-        #  "Setup Haskell (head)" step too.
-        include:
-          - os: ubuntu-22.04
-            ghc: head
+        # # Uncomment if testing with an unreleased GHC. Make sure to edit the
+        # #  "Setup Haskell (head)" step too.
+        # include:
+        #   - os: ubuntu-22.04
+        #     ghc: head
       fail-fast: false
     steps:
       - name: Checkout
