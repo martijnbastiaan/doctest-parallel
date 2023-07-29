@@ -184,6 +184,7 @@ test-suite spectests
       MainSpec
       OptionsSpec
       ParseSpec
+      ProjectsSpec
       PropertySpec
       Runner.ExampleSpec
       RunnerSpec

@@ -1,6 +1,7 @@
 # 0.3.1
  * Dropped support for GHC 8.2
- * Add `--ghc-arg` as a command line argument, allowing users to pass additional arguments to GHC used to parse Haddock.
+ * Add `--ghc-arg` as a command line argument, allowing users to pass additional arguments to GHC used to parse Haddock. ([#71](https://github.com/martijnbastiaan/doctest-parallel/issues/71))
+ * CPP options and GHC options (Cabal fields: `cpp-options` and `ghc-options`) are now passed to GHC when parsing source files ([#71](https://github.com/martijnbastiaan/doctest-parallel/issues/71))
 
 # 0.3.0.1
  * Add support for GHC 9.6
