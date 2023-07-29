@@ -1,3 +1,6 @@
+# 0.3.1
+ * Dropped support for GHC 8.2
+
 # 0.3.0.1
  * Add support for GHC 9.6
 
