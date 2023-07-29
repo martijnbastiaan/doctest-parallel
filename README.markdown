@@ -34,6 +34,42 @@ A comment line starting with `>>>` denotes an _expression_. All comment lines fo
 
 `doctest-parallel` will fail on comments that `haddock` also doesn't like. Sometimes (e.g., [#251](https://github.com/sol/doctest/issues/251)), this means that `doctest-parallel` will fail on input that GHC accepts.
 
+## Command line
+```
+Usage:
+  doctest [ options ]... [<module>]...
+  doctest --help
+  doctest --version
+  doctest --info
+
+Options:
+   -jN                      number of threads to use
+   --log-level=LEVEL        one of: debug, verbose, info, warning, error. Default: info.
+   --ghc-arg=ARG            pass argument to GHC when parsing, pass multiple times for multiple flags
+†  --implicit-module-import import module before testing it (default)
+†  --randomize-order        randomize order in which tests are run
+†  --seed=N                 use a specific seed to randomize test order
+†  --preserve-it            preserve the `it` variable between examples
+   --nix                    account for Nix build environments (default)
+   --quiet                  set log level to `Error`, shorthand for `--log-level=error`
+   --verbose                set log level to `Verbose`, shorthand for `--log-level=verbose`
+   --debug                  set log level to `Debug`, shorthand for `--log-level=debug`
+   --help                   display this help and exit
+   --version                output version information and exit
+   --info                   output machine-readable version information and exit
+
+Supported inverted options:
+   --no-nix
+†  --no-implicit-module-import
+†  --no-randomize-order (default)
+†  --no-preserve-it (default)
+
+Options marked with a dagger (†) can also be used to set module level options, using
+an ANN pragma like this:
+
+  {-# ANN module "doctest-parallel: --no-randomize-order" #-}
+```
+
 ## Example groups
 
 Examples from a single Haddock comment are grouped together and share the same
