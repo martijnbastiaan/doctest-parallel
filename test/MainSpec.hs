@@ -74,6 +74,10 @@ spec = do
       doctest ["FailingMultiple.Foo"]
         (cases 4) {sTried = 2, sFailures = 1}
 
+    it "use -DFIB=fib to set CPP flag" $
+      doctestWithOpts defaultConfig{cfgGhcArgs=["-DFIB=fib"]} ["GhcArg.Fib"]
+        (cases 1)
+
     it "testImport" $ do
       doctest ["TestImport.ModuleA"]
         (cases 2)

@@ -140,6 +140,7 @@ library spectests-modules
     DosLineEndings.Fib
     Failing.Foo
     FailingMultiple.Foo
+    GhcArg.Fib
     It.Foo
     It.Setup
     LocalStderrBinding.A

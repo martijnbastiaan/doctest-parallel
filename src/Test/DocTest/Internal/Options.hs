@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Test.DocTest.Internal.Options where
 
@@ -38,6 +39,7 @@ usage = unlines [
   , "Options:"
   , "   -jN                      number of threads to use"
   , "   --log-level=LEVEL        one of: debug, verbose, info, warning, error. Default: info."
+  , "   --ghc-arg=ARG            pass argument to GHC when parsing, pass multiple times for multiple flags"
   , "†  --implicit-module-import import module before testing it (default)"
   , "†  --randomize-order        randomize order in which tests are run"
   , "†  --seed=N                 use a specific seed to randomize test order"
@@ -105,6 +107,8 @@ data Config = Config
   , cfgNix :: Bool
   -- ^ Detect Nix build environment and try to make GHC aware of the local package
   -- being tested.
+  , cfgGhcArgs :: [String]
+  -- ^ Extra arguments passed to GHC when parsing
   } deriving (Show, Eq, Generic, NFData)
 
 data ModuleConfig = ModuleConfig
@@ -136,6 +140,7 @@ defaultConfig = Config
   , cfgLogLevel = Info
   , cfgModuleConfig = defaultModuleConfig
   , cfgNix = True
+  , cfgGhcArgs = []
   }
 
 parseLocatedModuleOptions ::
@@ -164,7 +169,7 @@ parseModuleOption config arg =
     _ -> Nothing
 
 parseOptions :: [String] -> Result Config
-parseOptions = go defaultConfig
+parseOptions = fmap revGhcArgs . go defaultConfig
  where
   go config [] = Result config
   go config (arg:args) =
@@ -179,12 +184,30 @@ parseOptions = go defaultConfig
       "--no-nix" -> go config{cfgNix=False} args
       ('-':_) | Just n <- parseThreads arg -> go config{cfgThreads=Just n} args
       ('-':_) | Just l <- parseLogLevel arg -> go config{cfgLogLevel=l} args
+      ('-':_) | Just a <- parseGhcArg arg -> go (addGhcArg a config) args
       ('-':_)
         -- Module specific configuration options
         | Just modCfg <- parseModuleOption (cfgModuleConfig config) arg
        -> go config{cfgModuleConfig=modCfg} args
       ('-':_) -> ResultStderr ("Unknown command line argument: " <> arg)
       mod_ -> go config{cfgModules=mod_ : cfgModules config} args
+
+  addGhcArg :: String -> Config -> Config
+  addGhcArg arg Config{..} = Config{cfgGhcArgs=arg:cfgGhcArgs, ..}
+
+  revGhcArgs :: Config -> Config
+  revGhcArgs Config{..} = Config{cfgGhcArgs=reverse cfgGhcArgs, ..}
+
+-- | Parse ghc-arg argument
+--
+-- >>> parseGhcArg "--ghc-arg=foobar"
+-- Just "foobar"
+
+-- >>> parseGhcArg "--ghc-arg=-DFOO=3"
+-- Just "-DFOO=3"
+--
+parseGhcArg :: String -> Maybe String
+parseGhcArg arg = parseSpecificFlag arg "ghc-arg"
 
 -- | Parse seed argument
 --
