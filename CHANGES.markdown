@@ -1,3 +1,7 @@
+# 0.3.1
+ * Dropped support for GHC 8.2
+ * Add `--ghc-arg` as a command line argument, allowing users to pass additional arguments to GHC used to parse Haddock.
+
 # 0.3.0.1
  * Add support for GHC 9.6
 

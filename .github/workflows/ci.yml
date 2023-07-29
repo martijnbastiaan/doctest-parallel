@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
-        ghc: ["9.6.1", "9.4.4", "9.2.7", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4", "8.2.2"]
+        ghc: ["9.6.2", "9.4.5", "9.2.8", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
         exclude:
           # Windows gets stuck while running the testsuite, but this is not a
           # doctest-parallel failure
@@ -154,8 +154,7 @@ jobs:
     strategy:
       matrix:
         tools:
-          - {ghc: "9.0.2", cabal: "3.8.1.0", hls: "1.8.0.0", ghcup: "0.1.18.0"}
-          - {ghc: "9.4.4", cabal: "3.8.1.0", hls: "1.9.0.0", ghcup: "0.1.18.0"}
+          - {ghc: "9.6.2", cabal: "3.10.1.0", hls: "2.0.0.1", ghcup: "0.1.19.4"}
     steps:
       - name: Checkout
         uses: actions/checkout@v3

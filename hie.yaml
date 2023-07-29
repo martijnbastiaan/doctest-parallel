@@ -1,14 +1,6 @@
 cradle:
   multi:
-    - path: "./test/extract"
-      config:
-        cradle:
-          none:
-    - path: "./test/nix"
-      config:
-        cradle:
-          none:
-    - path: "./test/parse"
+    - path: "./test"
       config:
         cradle:
           none:
@@ -26,5 +18,3 @@ cradle:
               component: "lib:spectests-modules"
             - path: "./test/doctests.hs"
               component: "doctest-parallel:doctests"
-            - path: "./test"
-              component: "doctest-parallel:spectests"

@@ -17,15 +17,14 @@ author:         Martijn Bastiaan <martijn@hmbastiaan.nl>
 maintainer:     Martijn Bastiaan <martijn@hmbastiaan.nl>
 build-type:     Simple
 tested-with:
-    GHC == 8.2.2
-  , GHC == 8.4.4
+    GHC == 8.4.4
   , GHC == 8.6.5
   , GHC == 8.8.4
   , GHC == 8.10.7
   , GHC == 9.0.2
-  , GHC == 9.2.7
-  , GHC == 9.4.4
-  , GHC == 9.6.1
+  , GHC == 9.2.8
+  , GHC == 9.4.5
+  , GHC == 9.6.2
 
 extra-source-files:
     example/example.cabal
@@ -141,6 +140,7 @@ library spectests-modules
     DosLineEndings.Fib
     Failing.Foo
     FailingMultiple.Foo
+    GhcArg.Fib
     It.Foo
     It.Setup
     LocalStderrBinding.A
