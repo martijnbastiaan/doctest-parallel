@@ -29,8 +29,7 @@ import Distribution.Types.UnqualComponentName ( unUnqualComponentName )
 import Distribution.PackageDescription
   ( GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription, condSubLibraries, includeDirs, autogenModules
-  , ConfVar(..), BuildInfo (cppOptions), hcOptions )
+  , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar(..) )
 
 import Distribution.Compiler (CompilerFlavor(GHC))
 import Distribution.Pretty (prettyShow)
@@ -70,8 +69,6 @@ data Library = Library
     -- ^ Exposed modules
   , libDefaultExtensions :: [Extension]
     -- ^ Extensions enabled by default
-  , libFlags :: [String]
-    -- ^ Flags found in 'cpp-options' and 'gcc-options'
   }
   deriving (Show)
 
@@ -82,7 +79,6 @@ mergeLibraries libs = Library
   , libCSourceDirectories = concatMap libCSourceDirectories libs
   , libModules = concatMap libModules libs
   , libDefaultExtensions = concatMap libDefaultExtensions libs
-  , libFlags = concatMap libFlags libs
   }
 
 -- | Convert a "Library" to arguments suitable to be passed to GHCi.
@@ -92,7 +88,7 @@ libraryToGhciArgs Library{..} = (hsSrcArgs <> cSrcArgs, modArgs, extArgs)
   hsSrcArgs = map ("-i" <>) libSourceDirectories
   cSrcArgs = map ("-I" <>) libCSourceDirectories
   modArgs = map prettyShow libModules
-  extArgs = map showExt libDefaultExtensions <> libFlags
+  extArgs = map showExt libDefaultExtensions
 
   showExt = \case
     EnableExtension ext -> "-X" <> show ext
@@ -234,7 +230,6 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
     , libCSourceDirectories = map (root </>) cSourceDirs
     , libModules = exposedModules lib `rmList` autogenModules buildInfo
     , libDefaultExtensions = defaultExtensions buildInfo
-    , libFlags = cppOptions buildInfo <> hcOptions GHC buildInfo
     }
    where
     buildInfo = libBuildInfo lib
