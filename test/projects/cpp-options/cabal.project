@@ -1,0 +1,6 @@
+packages:
+  .
+  ../../..
+
+write-ghc-environment-files: always
+
