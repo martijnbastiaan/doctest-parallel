@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
-        ghc: ["9.6.2", "9.4.5", "9.2.8", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
+        ghc: ["9.8.1", "9.6.3", "9.4.7", "9.2.8", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
         exclude:
           # Windows gets stuck while running the testsuite, but this is not a
           # doctest-parallel failure
@@ -181,7 +181,6 @@ jobs:
 
       - name: Setup CI
         run: |
-          echo $PATH
           cabal v2-freeze
           mv cabal.project.freeze frozen
 
