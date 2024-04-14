@@ -46,7 +46,7 @@ spec = do
       runProperty repl "x == 23" `shouldReturn` Failure "*** Failed! Falsified (after 1 test):\n0"
 
     it "reports the values for which a property that takes multiple arguments fails" $ withInterpreter noLogger [] $ \repl -> do
-      let vals x = case x of (Failure r) -> tail (lines r); _ -> error "Property did not fail!"
+      let vals x = case x of (Failure r) -> drop 1 (lines r); _ -> error "Property did not fail!"
       vals `fmap` runProperty repl "x == True && y == 10 && z == \"foo\"" `shouldReturn` ["False", "0", show ("" :: String)]
 
     it "defaults ambiguous type variables to Integer" $ withInterpreter noLogger [] $ \repl -> do

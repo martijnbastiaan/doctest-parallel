@@ -1,5 +1,9 @@
 {-# LANGUAGE CPP #-}
 
+#if __GLASGOW_HASKELL__ <= 906
+{-# LANGUAGE LambdaCase #-}
+#endif
+
 module Test.DocTest.Internal.Interpreter (
   Interpreter
 , safeEval
@@ -18,6 +22,11 @@ import System.Directory (getPermissions, executable)
 import Control.Monad
 import Control.Exception hiding (handle)
 import Data.Char
+#if __GLASGOW_HASKELL__ > 906
+import Data.List (unsnoc)
+#else
+import Data.Bifunctor (first)
+#endif
 import GHC.Paths (ghc)
 
 import Test.DocTest.Internal.GhciWrapper
@@ -26,6 +35,23 @@ import Test.DocTest.Internal.Logging (DebugLogger)
 -- $setup
 -- >>> import Test.DocTest.Internal.GhciWrapper (eval)
 -- >>> import Test.DocTest.Internal.Logging (noLogger)
+
+#if __GLASGOW_HASKELL__ <= 906
+-- | If the list is empty returns 'Nothing', otherwise returns the 'init' and the 'last'.
+--
+-- > unsnoc "test" == Just ("tes",'t')
+-- > unsnoc ""     == Nothing
+-- > \xs -> unsnoc xs == if null xs then Nothing else Just (init xs, last xs)
+unsnoc :: [a] -> Maybe ([a], a)
+unsnoc = \case
+  []   -> Nothing
+  x:xs -> Just $ unsnoc1 x xs
+  where
+    unsnoc1 :: a -> [a] -> ([a], a)
+    unsnoc1 x = \case
+      []   -> ([], x)
+      y:ys -> first (x:) $ unsnoc1 y ys
+#endif
 
 haveInterpreterKey :: String
 haveInterpreterKey = "Have interpreter"
@@ -76,13 +102,13 @@ safeEvalIt repl = either (return . Left) (fmap Right . evalIt repl) . filterExpr
 
 filterExpression :: String -> Either String String
 filterExpression e =
-  case lines e of
+  case map strip (lines e) of
     [] -> Right e
-    l  -> if firstLine == ":{" && lastLine /= ":}" then fail_ else Right e
-      where
-        firstLine = strip $ head l
-        lastLine  = strip $ last l
-        fail_ = Left "unterminated multiline command"
+    (firstLine:ls) ->
+      let lastLine = maybe firstLine snd (unsnoc ls) in
+      if firstLine == ":{" && lastLine /= ":}" then fail_ else Right e
   where
+    fail_ = Left "unterminated multiline command"
+
     strip :: String -> String
     strip = dropWhile isSpace . reverse . dropWhile isSpace . reverse

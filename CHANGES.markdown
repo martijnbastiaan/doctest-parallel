@@ -1,3 +1,6 @@
+# 0.3.1.1
+ * Add support for GHC 9.10
+
 # 0.3.1
  * Add support for GHC 9.8
  * Drop support for GHC 8.2

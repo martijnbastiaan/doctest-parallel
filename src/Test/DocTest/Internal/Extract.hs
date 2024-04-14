@@ -329,8 +329,10 @@ extractLit loc = \case
 #else
 #if __GLASGOW_HASKELL__ < 904
   HsPar _ (L l e) -> extractLit (locA l) e
-#else
+#elif __GLASGOW_HASKELL__ < 909
   HsPar _ _ (L l e) _ -> extractLit (locA l) e
+#else
+  HsPar _ (L l e) -> extractLit (locA l) e
 #endif
 #if __GLASGOW_HASKELL__ < 807
   ExprWithTySig _ (L l e) -> extractLit l e
