@@ -3,7 +3,12 @@ packages:
 
 write-ghc-environment-files: always
 
+tests: true
+
+source-repository-package
+  type: git
+  location: https://github.com/haskell-unordered-containers/unordered-containers.git
+  tag: d52a0fd10bfa701cbbc9d7ac06bd7eb7664b3972
 
 allow-newer:
-    *:base
-  , *:ghc-bignum
+  unordered-containers:template-haskell

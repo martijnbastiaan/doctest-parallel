@@ -27,7 +27,7 @@ mkResult expected_ actual_ =
     -- use show to escape special characters in output lines if any output line
     -- contains any unsafe character
     escapeOutput
-      | any (not . isSafe) $ concat (expectedAsString ++ actual_) = init . tail . show . stripEnd
+      | any (not . isSafe) $ concat (expectedAsString ++ actual_) = init . drop 1 . show . stripEnd
       | otherwise = id
 
     actual :: [String]
