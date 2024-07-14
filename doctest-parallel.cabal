@@ -93,7 +93,7 @@ library
       Data.List.Extra
       Paths_doctest_parallel
   build-depends:
-      Cabal >= 2.4 && < 3.11
+      Cabal >= 2.4 && < 3.13
     , Glob
     , base >=4.10 && <5
     , base-compat >=0.7.0
