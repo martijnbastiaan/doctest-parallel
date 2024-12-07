@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
-        ghc: ["9.8.1", "9.6.3", "9.4.7", "9.2.8", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
+        ghc: ["9.10.1", "9.8.1", "9.6.3", "9.4.7", "9.2.8", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
         exclude:
           # Windows gets stuck while running the testsuite, but this is not a
           # doctest-parallel failure
@@ -85,9 +85,9 @@ jobs:
 
         # Uncomment if testing with an unreleased GHC. Make sure to edit the
         #  "Setup Haskell (head)" step too.
-        include:
-          - os: ubuntu-22.04
-            ghc: head
+        # include:
+        #   - os: ubuntu-22.04
+        #     ghc: head
       fail-fast: false
     steps:
       - name: Checkout
