@@ -12,3 +12,6 @@ source-repository-package
 
 allow-newer:
   unordered-containers:template-haskell
+
+package doctest-parallel
+  ghc-options: +RTS -qn4 -A128M -RTS -j4
