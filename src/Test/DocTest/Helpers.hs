@@ -9,6 +9,7 @@ module Test.DocTest.Helpers where
 
 import GHC.Stack (HasCallStack)
 
+import Data.Maybe (maybeToList)
 import System.Directory
   ( canonicalizePath, doesFileExist )
 import System.FilePath ((</>), isDrive, takeDirectory)
@@ -24,12 +25,13 @@ import qualified Data.Set as Set
 -- Cabal
 import Distribution.ModuleName (ModuleName)
 import Distribution.Simple
-  ( Extension (DisableExtension, EnableExtension, UnknownExtension) )
+  ( Extension (DisableExtension, EnableExtension, UnknownExtension), Language (..) )
 import Distribution.Types.UnqualComponentName ( unUnqualComponentName )
 import Distribution.PackageDescription
   ( GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
-  , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar(..) )
+  , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar(..)
+  , defaultLanguage )
 
 import Distribution.Compiler (CompilerFlavor(GHC))
 import Distribution.Pretty (prettyShow)
@@ -69,26 +71,35 @@ data Library = Library
     -- ^ Exposed modules
   , libDefaultExtensions :: [Extension]
     -- ^ Extensions enabled by default
+  , libDefaultLanguages :: [Language]
+    -- ^ Language version(s) to enable
   }
   deriving (Show)
 
 -- | Merge multiple libraries into one, by concatenating all their fields.
 mergeLibraries :: [Library] -> Library
 mergeLibraries libs = Library
+  -- XXX: Why do we merge libraries? Shouldn't we always aim to parse ONE library?
   { libSourceDirectories = concatMap libSourceDirectories libs
   , libCSourceDirectories = concatMap libCSourceDirectories libs
   , libModules = concatMap libModules libs
   , libDefaultExtensions = concatMap libDefaultExtensions libs
+  , libDefaultLanguages = concatMap libDefaultLanguages libs
   }
 
 -- | Convert a "Library" to arguments suitable to be passed to GHCi.
 libraryToGhciArgs :: Library -> ([String], [String], [String])
-libraryToGhciArgs Library{..} = (hsSrcArgs <> cSrcArgs, modArgs, extArgs)
+libraryToGhciArgs Library{..} = (hsSrcArgs <> cSrcArgs, modArgs, extArgs <> langArgs)
  where
   hsSrcArgs = map ("-i" <>) libSourceDirectories
   cSrcArgs = map ("-I" <>) libCSourceDirectories
   modArgs = map prettyShow libModules
   extArgs = map showExt libDefaultExtensions
+  langArgs = map showLanguage libDefaultLanguages
+
+  showLanguage = \case
+    UnknownLanguage ul -> "-X" <> ul
+    l -> "-X" <> show l
 
   showExt = \case
     EnableExtension ext -> "-X" <> show ext
@@ -230,6 +241,7 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
     , libCSourceDirectories = map (root </>) cSourceDirs
     , libModules = exposedModules lib `rmList` autogenModules buildInfo
     , libDefaultExtensions = defaultExtensions buildInfo
+    , libDefaultLanguages = maybeToList (defaultLanguage buildInfo)
     }
    where
     buildInfo = libBuildInfo lib

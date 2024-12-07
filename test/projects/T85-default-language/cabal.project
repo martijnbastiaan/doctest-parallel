@@ -1,0 +1,10 @@
+write-ghc-environment-files: always
+
+packages:
+  .
+  ../../..
+
+tests: true
+
+package doctest-parallel
+  ghc-options: +RTS -qn4 -A128M -RTS -j4

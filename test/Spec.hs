@@ -9,6 +9,7 @@ import qualified LocationSpec
 import qualified MainSpec
 import qualified OptionsSpec
 import qualified ParseSpec
+import qualified ProjectsSpec
 import qualified PropertySpec
 import qualified RunnerSpec
 import qualified RunSpec
@@ -26,6 +27,7 @@ spec = do
   describe "MainSpec"        MainSpec.spec
   describe "OptionsSpec"     OptionsSpec.spec
   describe "ParseSpec"       ParseSpec.spec
+  describe "ProjectsSpec"    ProjectsSpec.spec
   describe "PropertySpec"    PropertySpec.spec
   describe "RunnerSpec"      RunnerSpec.spec
   describe "RunSpec"         RunSpec.spec
