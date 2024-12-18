@@ -57,12 +57,23 @@ jobs:
 
   # Cabal
   cabal:
-    name: ${{ matrix.os }} / Cabal / GHC ${{ matrix.ghc }}
+    name: ${{ matrix.os }} / ${{ matrix.ghc }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
-        ghc: ["9.10.1", "9.8.1", "9.6.3", "9.4.7", "9.2.8", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
+        ghc:
+          - "9.12.1"
+          - "9.10.1"
+          - "9.8.1"
+          - "9.6.3"
+          - "9.4.7"
+          - "9.2.8"
+          - "9.0.2"
+          - "8.10.7"
+          - "8.8.4"
+          - "8.6.5"
+          - "8.4.4"
         exclude:
           # Windows gets stuck while running the testsuite, but this is not a
           # doctest-parallel failure
@@ -99,6 +110,7 @@ jobs:
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
+          cabal-version: 3.14.1.0
 
       - name: Setup Haskell (head)
         if: matrix.ghc == 'head'

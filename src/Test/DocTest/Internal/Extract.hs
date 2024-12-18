@@ -18,7 +18,10 @@ import           Data.List.Extra (trim)
 import           Data.Maybe
 
 import           Control.DeepSeq (NFData, deepseq)
-import           Data.Generics (Data, Typeable, extQ, mkQ, everythingBut)
+import           Data.Generics (Data, extQ, mkQ, everythingBut)
+#if __GLASGOW_HASKELL__ < 912
+import           Data.Generics (Typeable)
+#endif
 
 import qualified GHC
 
@@ -80,7 +83,9 @@ import           GHC.Generics (Generic)
 
 -- | A wrapper around `SomeException`, to allow for a custom `Show` instance.
 newtype ExtractError = ExtractError SomeException
+#if __GLASGOW_HASKELL__ < 912
   deriving Typeable
+#endif
 
 instance Show ExtractError where
   show (ExtractError e) =

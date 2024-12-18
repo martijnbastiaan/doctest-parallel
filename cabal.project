@@ -11,7 +11,9 @@ source-repository-package
   tag: d52a0fd10bfa701cbbc9d7ac06bd7eb7664b3972
 
 allow-newer:
-  unordered-containers:template-haskell
+  unordered-containers:template-haskell,
+  splitmix:base,
+  hashable:base,
 
 package doctest-parallel
   ghc-options: +RTS -qn4 -A128M -RTS -j4
