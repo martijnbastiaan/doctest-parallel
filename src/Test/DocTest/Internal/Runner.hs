@@ -7,7 +7,7 @@ module Test.DocTest.Internal.Runner where
 
 import           Prelude hiding (putStr, putStrLn, error)
 
-import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO, ThreadId, myThreadId)
+import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO, ThreadId, myThreadId, MVar, newMVar)
 import           Control.Exception (SomeException, catch)
 import           Control.Monad hiding (forM_)
 import           Data.Foldable (forM_)
@@ -31,10 +31,15 @@ import           Test.DocTest.Internal.Options
 import           Test.DocTest.Internal.Location
 import qualified Test.DocTest.Internal.Property as Property
 import           Test.DocTest.Internal.Runner.Example
-import           Test.DocTest.Internal.Logging (LogLevel (..), formatLog, shouldLog)
+import           Test.DocTest.Internal.Logging (LogLevel (..), formatLog, shouldLog, getThreadName)
+import           Test.DocTest.Internal.Extract (isEmptyModule)
 
 import           System.IO.CodePage (withCP65001)
-import Control.Monad.Extra (whenM)
+import           Control.Monad.Extra (whenM)
+
+#ifdef mingw32_HOST_OS
+import           Control.Concurrent.MVar (withMVar)
+#endif
 
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup
@@ -81,29 +86,31 @@ runModules
   -> Bool
   -- ^ Implicit Prelude
   -> [String]
+  -- ^ Arguments passed to the GHC for parsing
+  -> [String]
   -- ^ Arguments passed to the GHCi process.
-  -> [Module [Located DocTest]]
+  -> [ModuleName]
   -- ^ Modules under test
   -> IO Summary
-runModules modConfig nThreads implicitPrelude args modules = do
+runModules modConfig nThreads implicitPrelude parseArgs evalArgs modules = do
   isInteractive <- hIsTerminalDevice stderr
+  ghcLock <- newMVar ()
 
   -- Start a thread pool. It sends status updates to this thread through 'output'.
   nCores <- getNumProcessors
   (input, output) <-
     makeThreadPool
       (fromMaybe nCores nThreads)
-      (runModule modConfig implicitPrelude args)
+      (runModule modConfig implicitPrelude ghcLock parseArgs evalArgs)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
 
   let
-    nExamples = (sum . map count) modules
     initState = ReportState
       { reportStateCount = 0
       , reportStateInteractive = isInteractive
-      , reportStateSummary = mempty{sExamples=nExamples}
+      , reportStateSummary = mempty
       }
 
   threadId <- myThreadId
@@ -126,7 +133,7 @@ runModules modConfig nThreads implicitPrelude args modules = do
     let ?threadId = threadId
     consumeUpdates output =<<
       case update of
-        UpdateInternalError fs loc e -> reportInternalError fs loc e >> pure (modsLeft - 1)
+        UpdateInternalError modName e -> reportInternalError modName e >> pure (modsLeft - 1)
         UpdateImportError modName result -> reportImportError modName result >> pure (modsLeft - 1)
         UpdateSuccess fs -> reportSuccess fs >> reportProgress >> pure modsLeft
         UpdateFailure fs loc expr errs -> reportFailure fs loc expr errs >> pure modsLeft
@@ -134,6 +141,7 @@ runModules modConfig nThreads implicitPrelude args modules = do
         UpdateOptionError loc err -> reportOptionError loc err >> pure modsLeft
         UpdateModuleDone -> pure (modsLeft - 1)
         UpdateLog lvl msg -> report lvl msg >> pure modsLeft
+        UpdateModuleParsed modName nExamples -> reportModuleParsed modName nExamples >> pure modsLeft
 
 -- | Count number of expressions in given module.
 count :: Module [Located DocTest] -> Int
@@ -158,7 +166,8 @@ report ::
   Report ()
 report lvl msg0 =
   when (shouldLog lvl) $ do
-    let msg1 = formatLog ?threadId lvl msg0
+    threadName <- liftIO $ getThreadName ?threadId
+    let msg1 = formatLog threadName lvl msg0
     overwrite msg1
 
     -- add a newline, this makes the output permanent
@@ -195,95 +204,108 @@ shuffle seed xs =
 runModule
   :: ModuleConfig
   -> Bool
+  -> MVar ()
+  -- ^ GHC lock
   -> [String]
+  -- ^ Parse GHC arguments
+  -> [String]
+  -- ^ Eval GHCi arguments
   -> Chan (ThreadId, ReportUpdate)
-  -> Module [Located DocTest]
+  -> ModuleName
   -> IO ()
-runModule modConfig0 implicitPrelude ghciArgs output mod_ = do
+runModule modConfig0 implicitPrelude ghcLock parseArgs evalArgs output modName = do
   threadId <- myThreadId
   let update r = writeChan output (threadId, r)
 
-  case modConfig2 of
-    Left (loc, flag) ->
-      update (UpdateOptionError loc flag)
+  mod_@(Module module_ setup examples0 modArgs) <-
+#ifdef mingw32_HOST_OS
+    -- XXX: Cannot use multiple GHC APIs at the same time on Windows
+    withMVar ghcLock $ \() ->
+#else
+    ghcLock `seq`
+#endif
+      getDocTests parseArgs modName
+  update (UpdateModuleParsed modName (count (Module module_ setup examples0 modArgs)))
+  let modConfig2 = parseLocatedModuleOptions modName modConfig0 modArgs
 
-    Right modConfig3 -> do
-      let
-        examples1
-          | cfgRandomizeOrder modConfig3 = shuffle seed examples0
-          | otherwise = examples0
+  unless (isEmptyModule mod_) $
+    case modConfig2 of
+      Left (loc, flag) ->
+        update (UpdateOptionError loc flag)
 
-        importModule
-          | cfgImplicitModuleImport modConfig3 = Just (":m +" ++ module_)
-          | otherwise = Nothing
+      Right modConfig3 -> do
+        let
+          examples1
+            | cfgRandomizeOrder modConfig3 = shuffle seed examples0
+            | otherwise = examples0
 
-        preserveIt = cfgPreserveIt modConfig3
-        seed = fromMaybe 0 (cfgSeed modConfig3) -- Should have been set already
+          importModule
+            | cfgImplicitModuleImport modConfig3 = Just (":m +" ++ module_)
+            | otherwise = Nothing
 
-        reload repl = do
-          void $ Interpreter.safeEval repl ":reload"
-          mapM_ (Interpreter.safeEval repl) $
-            if implicitPrelude
-            then ":m Prelude" : maybeToList importModule
-            else maybeToList importModule
+          preserveIt = cfgPreserveIt modConfig3
+          seed = fromMaybe 0 (cfgSeed modConfig3) -- Should have been set already
 
-          when preserveIt $
-            -- Evaluate a dumb expression to populate the 'it' variable NOTE: This is
-            -- one reason why we cannot have safeEval = safeEvalIt: 'it' isn't set in
-            -- a fresh GHCi session.
-            void $ Interpreter.safeEval repl $ "()"
+          reload repl = do
+            void $ Interpreter.safeEval repl ":reload"
+            mapM_ (Interpreter.safeEval repl) $
+              if implicitPrelude
+              then ":m Prelude" : maybeToList importModule
+              else maybeToList importModule
 
-        setup_ repl = do
-          reload repl
-          forM_ setup $ \l -> forM_ l $ \(Located _ x) -> case x of
-            Property _  -> return ()
-            Example e _ -> void $ safeEvalWith preserveIt repl e
+            when preserveIt $
+              -- Evaluate a dumb expression to populate the 'it' variable NOTE: This is
+              -- one reason why we cannot have safeEval = safeEvalIt: 'it' isn't set in
+              -- a fresh GHCi session.
+              void $ Interpreter.safeEval repl $ "()"
+
+          setup_ repl = do
+            reload repl
+            forM_ setup $ \l -> forM_ l $ \(Located _ x) -> case x of
+              Property _  -> return ()
+              Example e _ -> void $ safeEvalWith preserveIt repl e
 
 
-      let logger = update . UpdateLog Debug
-      Interpreter.withInterpreter logger ghciArgs $ \repl -> withCP65001 $ do
-        -- Try to import this module, if it fails, something is off
-        importResult <-
-          case importModule of
-            Nothing -> pure (Right "")
-            Just i -> Interpreter.safeEval repl i
+        let logger = update . UpdateLog Debug
+        Interpreter.withInterpreter logger evalArgs $ \repl -> withCP65001 $ do
+          -- Try to import this module, if it fails, something is off
+          importResult <-
+            case importModule of
+              Nothing -> pure (Right "")
+              Just i -> Interpreter.safeEval repl i
 
-        case importResult of
-          Right "" -> do
-            -- Run setup group
-            successes <-
-              mapM
-                (runTestGroup FromSetup preserveIt repl (reload repl) update)
-                setup
+          case importResult of
+            Right "" -> do
+              -- Run setup group
+              successes <-
+                mapM
+                  (runTestGroup FromSetup preserveIt repl (reload repl) update)
+                  setup
 
-            -- only run tests, if setup does not produce any errors/failures
-            when
-              (and successes)
-              (mapM_
-                (runTestGroup NotFromSetup preserveIt repl (setup_ repl) update)
-                examples1)
-          _ ->
-            update (UpdateImportError module_ importResult)
+              -- only run tests, if setup does not produce any errors/failures
+              when
+                (and successes)
+                (mapM_
+                  (runTestGroup NotFromSetup preserveIt repl (setup_ repl) update)
+                  examples1)
+            _ ->
+              update (UpdateImportError module_ importResult)
 
   -- Signal main thread a module has been tested
   update UpdateModuleDone
 
-  pure ()
-
- where
-  Module module_ setup examples0 modArgs = mod_
-  modConfig2 = parseLocatedModuleOptions module_ modConfig0 modArgs
-
 data ReportUpdate
   = UpdateSuccess FromSetup
   -- ^ Test succeeded
+  | UpdateModuleParsed ModuleName Int
+  -- ^ Parsed module, found /n/ examples
   | UpdateFailure FromSetup Location Expression [String]
   -- ^ Test failed with unexpected result
   | UpdateError FromSetup Location Expression String
   -- ^ Test failed with an error
   | UpdateModuleDone
   -- ^ All examples tested in module
-  | UpdateInternalError FromSetup (Module [Located DocTest]) SomeException
+  | UpdateInternalError ModuleName SomeException
   -- ^ Exception caught while executing internal code
   | UpdateImportError ModuleName (Either String String)
   -- ^ Could not import module
@@ -294,19 +316,24 @@ data ReportUpdate
 
 makeThreadPool ::
   Int ->
-  (Chan (ThreadId, ReportUpdate) -> Module [Located DocTest] -> IO ()) ->
-  IO (Chan (Module [Located DocTest]), Chan (ThreadId, ReportUpdate))
+  (Chan (ThreadId, ReportUpdate) -> ModuleName -> IO ()) ->
+  IO (Chan ModuleName, Chan (ThreadId, ReportUpdate))
 makeThreadPool nThreads mutator = do
   input <- newChan
   output <- newChan
   forM_ [1..nThreads] $ \_ ->
     forkIO $ forever $ do
-      i <- readChan input
+      modName <- readChan input
       threadId <- myThreadId
       catch
-        (mutator output i)
-        (\e -> writeChan output (threadId, UpdateInternalError NotFromSetup i e))
+        (mutator output modName)
+        (\e -> writeChan output (threadId, UpdateInternalError modName e))
   return (input, output)
+
+reportModuleParsed :: (?verbosity::LogLevel, ?threadId::ThreadId) => ModuleName -> Int -> Report ()
+reportModuleParsed modName nExamples = do
+  report Debug (printf "Parsed module %s with %d examples" modName nExamples)
+  updateSummary NotFromSetup (Summary nExamples 0 0 0)
 
 reportFailure :: (?verbosity::LogLevel, ?threadId::ThreadId) => FromSetup -> Location -> Expression -> [String] -> Report ()
 reportFailure fromSetup loc expression err = do
@@ -328,12 +355,12 @@ reportOptionError loc opt = do
   report Error ""
   updateSummary FromSetup (Summary 0 1 1 0)
 
-reportInternalError :: (?verbosity::LogLevel, ?threadId::ThreadId) => FromSetup -> Module a -> SomeException -> Report ()
-reportInternalError fs mod_ err = do
-  report Error (printf "Internal error when executing tests in %s" (moduleName mod_))
+reportInternalError :: (?verbosity::LogLevel, ?threadId::ThreadId) => ModuleName -> SomeException -> Report ()
+reportInternalError modName err = do
+  report Error (printf "Error when executing tests in %s" modName)
   report Error (show err)
   report Error ""
-  updateSummary fs emptySummary{sErrors=1}
+  updateSummary NotFromSetup emptySummary{sErrors=1}
 
 reportImportError :: (?verbosity::LogLevel, ?threadId::ThreadId) => ModuleName -> Either String String -> Report ()
 reportImportError modName importResult = do

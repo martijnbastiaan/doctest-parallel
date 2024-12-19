@@ -37,7 +37,6 @@ import Panic
 import GHC.Utils.Panic
 #endif
 
-import Test.DocTest.Internal.Parse
 import Test.DocTest.Internal.Options
 import Test.DocTest.Internal.Runner
 import Test.DocTest.Internal.Nix (getNixGhciArgs)
@@ -110,17 +109,17 @@ isSuccess s = sErrors s == 0 && sFailures s == 0
 -- | Filter modules to be tested against a list of modules to be tested (specified
 -- by the user on the command line). If list is empty, test all modules. Throws
 -- and error if a non-existing module was specified.
-filterModules :: [ModuleName] -> [Module a] -> [Module a]
+filterModules :: [ModuleName] -> [ModuleName] -> [ModuleName]
 filterModules [] mods = mods
 filterModules wantedMods0 allMods0
   | (_:_) <- nonExistingMods = error ("Unknown modules specified: " <> show nonExistingMods)
   | otherwise = filter isSpecifiedMod allMods0
  where
   wantedMods1 = Set.fromList wantedMods0
-  allMods1 = Set.fromList (map moduleName allMods0)
+  allMods1 = Set.fromList allMods0
 
   nonExistingMods = Set.toList (wantedMods1 `Set.difference` allMods1)
-  isSpecifiedMod Module{moduleName} = moduleName `Set.member` wantedMods1
+  isSpecifiedMod nm = nm `Set.member` wantedMods1
 
 setSeed :: (?verbosity :: LogLevel) => ModuleConfig -> IO ModuleConfig
 setSeed cfg@ModuleConfig{cfgRandomizeOrder=True, cfgSeed=Nothing} = do
@@ -137,24 +136,19 @@ run lib Config{..} = do
 
   let
     implicitPrelude = DisableExtension ImplicitPrelude `notElem` libDefaultExtensions lib
-    (includeArgs, moduleArgs, otherGhciArgs) = libraryToGhciArgs lib
+    (includeArgs, allModules, otherGhciArgs) = libraryToGhciArgs lib
     evalGhciArgs = otherGhciArgs ++ ["-XNoImplicitPrelude"] ++ nixGhciArgs
-    parseGhcArgs = includeArgs ++ moduleArgs ++ otherGhciArgs ++ nixGhciArgs ++ cfgGhcArgs
+    parseGhcArgs = includeArgs ++ otherGhciArgs ++ nixGhciArgs ++ cfgGhcArgs
 
   let
     ?verbosity = cfgLogLevel
 
   modConfig <- setSeed cfgModuleConfig
 
-  -- Get examples from Haddock comments
-  Logging.log Verbose "Parsing comments.."
-  Logging.log Debug ("Calling GHC API with: " <> unwords parseGhcArgs)
-  allModules <- getDocTests parseGhcArgs
-
   -- Run tests
   Logging.log Verbose "Running examples.."
   let
     filteredModules = filterModules cfgModules allModules
-    filteredModulesMsg = intercalate ", " (map moduleName filteredModules)
+    filteredModulesMsg = intercalate ", " filteredModules
   Logging.log Debug ("Running examples in modules: " <> filteredModulesMsg)
-  runModules modConfig cfgThreads implicitPrelude evalGhciArgs filteredModules
+  runModules modConfig cfgThreads implicitPrelude parseGhcArgs evalGhciArgs filteredModules

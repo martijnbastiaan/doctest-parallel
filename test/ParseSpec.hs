@@ -8,6 +8,7 @@ import           Control.Monad.Trans.Writer
 
 import           Test.DocTest.Internal.Parse
 import           Test.DocTest.Internal.Location
+import           Test.DocTest.Internal.Extract (isEmptyModule)
 
 main :: IO ()
 main = hspec spec
@@ -24,14 +25,14 @@ prop_ e = tell [Property e]
 module_ :: String -> Writer [[DocTest]] () -> Writer [Module [DocTest]] ()
 module_ name gs = tell [Module name Nothing (execWriter gs) []]
 
-shouldGive :: IO [Module [Located DocTest]] -> Writer [Module [DocTest]] () -> Expectation
-shouldGive action expected = map (fmap $ map unLoc) `fmap` action `shouldReturn` execWriter expected
+shouldGive :: IO (Module [Located DocTest]) -> Writer [Module [DocTest]] () -> Expectation
+shouldGive action expected = map (fmap $ map unLoc) `fmap` fmap pure action `shouldReturn` execWriter expected
 
 spec :: Spec
 spec = do
   describe "getDocTests" $ do
     it "extracts properties from a module" $ do
-      getDocTests ["test/parse/property/Fib.hs"] `shouldGive` do
+      getDocTests ["-itest/parse/property"] "Fib" `shouldGive` do
         module_ "Fib" $ do
           group $ do
             prop_ "foo"
@@ -39,7 +40,7 @@ spec = do
             prop_ "baz"
 
     it "extracts examples from a module" $ do
-      getDocTests ["test/parse/simple/Fib.hs"] `shouldGive` do
+      getDocTests ["-itest/parse/simple"] "Fib" `shouldGive` do
         module_ "Fib" $ do
           group $ do
             ghci "putStrLn \"foo\""
@@ -50,7 +51,7 @@ spec = do
               "baz"
 
     it "extracts examples from documentation for non-exported names" $ do
-      getDocTests ["test/parse/non-exported/Fib.hs"] `shouldGive` do
+      getDocTests ["-itest/parse/non-exported"] "Fib" `shouldGive` do
         module_ "Fib" $ do
           group $ do
             ghci "putStrLn \"foo\""
@@ -61,7 +62,7 @@ spec = do
               "baz"
 
     it "extracts multiple examples from a module" $ do
-      getDocTests ["test/parse/multiple-examples/Foo.hs"] `shouldGive` do
+      getDocTests ["-itest/parse/multiple-examples"] "Foo" `shouldGive` do
         module_ "Foo" $ do
           group $ do
             ghci "foo"
@@ -71,17 +72,17 @@ spec = do
               "42"
 
     it "returns an empty list, if documentation contains no examples" $ do
-      getDocTests ["test/parse/no-examples/Fib.hs"] >>= (`shouldBe` [])
+      getDocTests ["-itest/parse/no-examples"] "Fib" >>= (`shouldSatisfy` isEmptyModule)
 
     it "sets setup code to Nothing, if it does not contain any tests" $ do
-      getDocTests ["test/parse/setup-empty/Foo.hs"] `shouldGive` do
+      getDocTests ["-itest/parse/setup-empty"] "Foo" `shouldGive` do
         module_ "Foo" $ do
           group $ do
             ghci "foo"
               "23"
 
     it "keeps modules that only contain setup code" $ do
-      getDocTests ["test/parse/setup-only/Foo.hs"] `shouldGive` do
+      getDocTests ["-itest/parse/setup-only"] "Foo" `shouldGive` do
         tell [Module "Foo" (Just [Example "foo" ["23"]]) [] []]
 
   describe "parseInteractions (an internal function)" $ do

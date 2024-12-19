@@ -1,4 +1,4 @@
-module Data.List.Extra (trim) where
+module Data.List.Extra (trim, splitOn) where
 
 import Data.Char (isSpace)
 import Data.List (dropWhileEnd)
@@ -19,3 +19,21 @@ trimStart = dropWhile isSpace
 -- | Remove spaces from the end of a string, see 'trim'.
 trimEnd :: String -> String
 trimEnd = dropWhileEnd isSpace
+
+-- TODO: Use doctests after fixing: https://github.com/martijnbastiaan/doctest-parallel/issues/87
+
+-- | Break a list into pieces separated by the first argument, consuming the delimiter.
+--
+-- > splitOn '.' "A.B"
+-- ["A","B"]
+-- > splitOn '.' "A.B.C"
+-- ["A","B","C"]
+-- > splitOn '.' "."
+-- ["",""]
+-- > splitOn '.' ""
+-- [""]
+splitOn :: Eq a => a -> [a] -> [[a]]
+splitOn needle haystack =
+  case break (== needle) haystack of
+    (chunk, []) -> [chunk]
+    (chunk, _ : rest) -> chunk : splitOn needle rest
