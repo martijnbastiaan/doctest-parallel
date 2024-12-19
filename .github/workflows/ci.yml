@@ -62,21 +62,8 @@ jobs:
     strategy:
       matrix:
         os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
-        ghc: ["9.10.1", "9.8.1", "9.6.3", "9.4.7", "9.2.8", "9.0.2", "8.10.7", "8.8.4", "8.6.5", "8.4.4"]
+        ghc: ["9.10.1", "9.8.1", "9.6.3", "9.4.7", "9.2.8", "9.0.2", "8.10.7"]
         exclude:
-          # Windows gets stuck while running the testsuite, but this is not a
-          # doctest-parallel failure
-          - os: windows-latest
-            ghc: 8.8.4
-
-          # GHCUp fails to install newer GHCs on macOS
-          - os: macOS-latest
-            ghc: "8.8.4"
-          - os: macOS-latest
-            ghc: "8.6.5"
-          - os: macOS-latest
-            ghc: "8.4.4"
-
           # Newer macOSs don't have the right LLVM to compile our dependencies
           - os: macOS-latest
             ghc: "9.0.2"
@@ -99,6 +86,7 @@ jobs:
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
+          cabal-version: 3.12.1.0
 
       - name: Setup Haskell (head)
         if: matrix.ghc == 'head'
