@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - parallel-parsing
   pull_request:
 
 concurrency:
