@@ -51,8 +51,8 @@ type Interaction = (Expression, ExpectedResult)
 -- |
 -- Extract 'DocTest's from all given modules and all modules included by the
 -- given modules.
-getDocTests :: [String] -> IO [Module [Located DocTest]]  -- ^ Extracted 'DocTest's
-getDocTests args = parseModules <$> extract args
+getDocTests :: [String] -> [String] -> IO [Module [Located DocTest]]  -- ^ Extracted 'DocTest's
+getDocTests args mods = parseModules <$> extract args mods
 
 parseModules :: [Module (Located String)] -> [Module [Located DocTest]]
 parseModules = filter (not . isEmpty) . map parseModule

@@ -139,7 +139,7 @@ run lib Config{..} = do
     implicitPrelude = DisableExtension ImplicitPrelude `notElem` libDefaultExtensions lib
     (includeArgs, moduleArgs, otherGhciArgs) = libraryToGhciArgs lib
     evalGhciArgs = otherGhciArgs ++ ["-XNoImplicitPrelude"] ++ nixGhciArgs
-    parseGhcArgs = includeArgs ++ moduleArgs ++ otherGhciArgs ++ nixGhciArgs ++ cfgGhcArgs
+    parseGhcArgs = includeArgs ++ otherGhciArgs ++ nixGhciArgs ++ cfgGhcArgs
 
   let
     ?verbosity = cfgLogLevel
@@ -149,7 +149,7 @@ run lib Config{..} = do
   -- Get examples from Haddock comments
   Logging.log Verbose "Parsing comments.."
   Logging.log Debug ("Calling GHC API with: " <> unwords parseGhcArgs)
-  allModules <- getDocTests parseGhcArgs
+  allModules <- getDocTests parseGhcArgs moduleArgs
 
   -- Run tests
   Logging.log Verbose "Running examples.."

@@ -35,6 +35,7 @@ import           Test.DocTest.Internal.Logging (LogLevel (..), formatLog, should
 
 import           System.IO.CodePage (withCP65001)
 import Control.Monad.Extra (whenM)
+import GHC.Conc.Sync (threadLabel)
 
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup
@@ -158,7 +159,8 @@ report ::
   Report ()
 report lvl msg0 =
   when (shouldLog lvl) $ do
-    let msg1 = formatLog ?threadId lvl msg0
+    threadName <- liftIO $ fromMaybe (show ?threadId) <$> threadLabel ?threadId
+    let msg1 = formatLog threadName lvl msg0
     overwrite msg1
 
     -- add a newline, this makes the output permanent

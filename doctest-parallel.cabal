@@ -104,6 +104,7 @@ library
     , exceptions
     , filepath
     , ghc >=8.2 && <9.11
+    , ghc-exactprint
     , ghc-paths >=0.1.0.9
     , process
     , random >= 1.2
