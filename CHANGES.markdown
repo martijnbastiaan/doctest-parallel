@@ -1,5 +1,7 @@
 # 0.4
  * Account for `default-language` sections in Cabal files ([#85](https://github.com/martijnbastiaan/doctest-parallel/issues/85))
+ * Add parallel parsing. The GHC API is now used to call the parser directly, which allows parallel parsing.  ([#85](https://github.com/martijnbastiaan/doctest-parallel/issues/89))
+ * Drop support for GHC 8.4, 8.6, and 8.8
 
 # 0.3.1.1
  * Add support for GHC 9.10

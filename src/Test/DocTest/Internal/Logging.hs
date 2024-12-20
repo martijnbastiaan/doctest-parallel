@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ImplicitParams #-}
@@ -10,9 +11,19 @@ import Control.Concurrent (ThreadId, myThreadId)
 import Control.DeepSeq (NFData)
 import Data.Char (toLower, toUpper)
 import Data.List (intercalate)
+import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import System.IO (hPutStrLn, stderr)
 import Text.Printf (printf)
+
+#if MIN_VERSION_base(4,18,0)
+import GHC.Conc.Sync (threadLabel)
+#endif
+
+#if !MIN_VERSION_base(4,18,0)
+threadLabel :: ThreadId -> IO (Maybe String)
+threadLabel _ = pure Nothing
+#endif
 
 -- | Convenience type alias - not used in this module, but sprinkled across the
 -- project.
@@ -85,22 +96,22 @@ showJustifiedLogLevel = justifyLeft maxSizeLogLevel ' ' . show
 justifyLeft :: Int -> a -> [a] -> [a]
 justifyLeft n c s = s ++ replicate (n - length s) c
 
+-- | Pretty name for a 'ThreadId'. Uses 'threadLabel' if available, otherwise
+-- falls back to 'show'.
+getThreadName :: ThreadId -> IO String
+getThreadName threadId = fromMaybe (show threadId) <$> threadLabel threadId
+
 -- | /Prettily/ format a log message
 --
 -- > threadId <- myThreadId
--- > formatLog Debug threadId "some debug message"
+-- > formatLog Debug (show threadId) "some debug message"
 -- "[DEBUG  ] [ThreadId 1277462] some debug message"
 --
-formatLog :: ThreadId -> LogLevel -> String -> String
-formatLog threadId lvl msg = do
+formatLog :: String -> LogLevel -> String -> String
+formatLog nm lvl msg =
   intercalate "\n" (map go (lines msg))
  where
-  go line =
-    printf
-      "[%s] [%s] %s"
-      (map toUpper (showJustifiedLogLevel lvl))
-      (show threadId)
-      line
+  go = printf "[%s] [%s] %s" (map toUpper (showJustifiedLogLevel lvl)) nm
 
 -- | Like 'formatLog', but instantiates the /thread/ argument with the current 'ThreadId'
 --
@@ -109,8 +120,8 @@ formatLog threadId lvl msg = do
 --
 formatLogHere :: LogLevel -> String -> IO String
 formatLogHere lvl msg = do
-  threadId <- myThreadId
-  pure (formatLog threadId lvl msg)
+  threadName <- getThreadName =<< myThreadId
+  pure (formatLog threadName lvl msg)
 
 -- | Should a message be printed? For a given verbosity level and message log level.
 shouldLog :: (?verbosity :: LogLevel) => LogLevel -> Bool
