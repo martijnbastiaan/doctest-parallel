@@ -2,6 +2,7 @@
  * Account for `default-language` sections in Cabal files ([#85](https://github.com/martijnbastiaan/doctest-parallel/issues/85))
 
 # 0.3.1.1
+ * Add support for GHC 9.12 (loosened bounds in Hackage revision)
  * Add support for GHC 9.10
 
 # 0.3.1
