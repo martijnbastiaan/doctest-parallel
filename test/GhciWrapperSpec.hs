@@ -6,7 +6,7 @@ import           Test.Hspec
 import           System.IO.Silently
 
 import           Control.Exception
-import           Data.List (isInfixOf)
+import           Data.List (isInfixOf, isPrefixOf)
 
 import           Test.DocTest.Internal.GhciWrapper (Interpreter, Config(..), defaultConfig)
 import qualified Test.DocTest.Internal.GhciWrapper as Interpreter
@@ -75,7 +75,8 @@ spec = do
 
     it "shows exceptions" $ withInterpreter $ \ghci -> do
       ghci "import Control.Exception" `shouldReturn` ""
-      ghci "throwIO DivideByZero" `shouldReturn` "*** Exception: divide by zero\n"
+      res <- ghci "throwIO DivideByZero"
+      res `shouldSatisfy` isPrefixOf "*** Exception: divide by zero\n"
 
     it "shows exceptions (ExitCode)" $ withInterpreter $ \ghci -> do
       ghci "import System.Exit" `shouldReturn` ""

@@ -48,7 +48,9 @@ import Distribution.Simple.PackageDescription (readGenericPackageDescription)
 import Distribution.PackageDescription.Parsec (readGenericPackageDescription)
 #endif
 
-#if MIN_VERSION_Cabal(3,6,0)
+#if MIN_VERSION_Cabal(3,14,0)
+import Distribution.Utils.Path (SymbolicPath, makeSymbolicPath)
+#elif MIN_VERSION_Cabal(3,6,0)
 import Distribution.Utils.Path (SourceDir, PackageDir, SymbolicPath)
 #endif
 
@@ -156,7 +158,10 @@ findCabalPackage packageName = goUp =<< canonicalizePath packageName
   packageFilename = packageName <> ".cabal"
   projectFilename = "cabal.project"
 
-#if MIN_VERSION_Cabal(3,6,0)
+#if MIN_VERSION_Cabal(3,14,0)
+compatPrettyShow :: SymbolicPath a b -> FilePath
+compatPrettyShow = prettyShow
+#elif MIN_VERSION_Cabal(3,6,0)
 compatPrettyShow :: SymbolicPath PackageDir SourceDir -> FilePath
 compatPrettyShow = prettyShow
 #else
@@ -210,7 +215,15 @@ buildGhc = mkVersion' compilerVersion
 -- a specific sublibrary.
 extractSpecificCabalLibrary :: Maybe String -> FilePath -> IO Library
 extractSpecificCabalLibrary maybeLibName pkgPath = do
-  pkg <- readGenericPackageDescription silent pkgPath
+  pkg <-
+    readGenericPackageDescription
+      silent
+#if MIN_VERSION_Cabal(3,14,0)
+      Nothing
+      (makeSymbolicPath pkgPath)
+#else
+      pkgPath
+#endif
   case maybeLibName of
     Nothing ->
       case condLibrary pkg of
@@ -238,7 +251,11 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
 
   goLib lib = Library
     { libSourceDirectories = map ((root </>) . compatPrettyShow) sourceDirs
-    , libCSourceDirectories = map (root </>) cSourceDirs
+    , libCSourceDirectories = map ((root </>))
+#if MIN_VERSION_Cabal(3,14,0)
+      $ map compatPrettyShow
+#endif
+      cSourceDirs
     , libModules = exposedModules lib `rmList` autogenModules buildInfo
     , libDefaultExtensions = defaultExtensions buildInfo
     , libDefaultLanguages = maybeToList (defaultLanguage buildInfo)
