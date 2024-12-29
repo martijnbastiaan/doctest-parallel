@@ -112,6 +112,11 @@ jobs:
           ghcup set ghc 9.10.0.20240328
           echo "cabal-store=$HOME/.cabal/store" >> $GITHUB_OUTPUT
 
+      - name: Enable -Werror
+        run: |
+          echo "package doctest-parallel" >> cabal.project.local
+          echo "  ghc-options: -Werror"   >> cabal.project.local
+
       - name: Setup CI
         run: |
           cabal v2-freeze
