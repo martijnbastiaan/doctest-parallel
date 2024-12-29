@@ -8,11 +8,18 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Test.DocTest.Internal.Extract (Module(..), isEmptyModule, extract, eraseConfigLocation) where
+module Test.DocTest.Internal.Extract
+  ( Module(..)
+  , isEmptyModule
+  , extract
+  , extractIO
+  , eraseConfigLocation
+  ) where
 import           Prelude hiding (mod, concat)
 import           Control.DeepSeq (NFData, deepseq)
-import           Control.Exception
+import           Control.Exception (AsyncException, throw, throwIO, fromException)
 import           Control.Monad
+import           Control.Monad.Catch (catches, SomeException, Exception, Handler (Handler))
 import           Data.Generics (Data, extQ, mkQ, everythingBut)
 import           Data.List (partition, isPrefixOf)
 import           Data.List.Extra (trim, splitOn)
@@ -168,39 +175,42 @@ findModulePath importPaths modName = do
 -- | Parse a list of modules. Can throw an `ModuleNotFoundError` if a module's
 -- source file cannot be found. Can throw a `SourceError` if an error occurs
 -- while parsing.
-parse :: [String] -> String -> IO ParsedSource
-parse args modName = do
+parse :: String -> Ghc ParsedSource
+parse modName = do
   -- Find all specified modules on disk
-  withGhc args $ do
-    importPaths0 <- importPaths <$> getDynFlags
-    path <- liftIO $ findModulePath importPaths0 modName
+  importPaths0 <- importPaths <$> getDynFlags
+  path <- liftIO $ findModulePath importPaths0 modName
 
-    -- LANGUAGE pragmas can influence how a file is parsed. For example, CPP
-    -- means we need to preprocess the file before parsing it. We use GHC's
-    -- `getOptionsFromFile` to parse these pragmas and then feed them as options
-    -- to the "real" parser.
-    dynFlags0 <- getDynFlags
+  -- LANGUAGE pragmas can influence how a file is parsed. For example, CPP
+  -- means we need to preprocess the file before parsing it. We use GHC's
+  -- `getOptionsFromFile` to parse these pragmas and then feed them as options
+  -- to the "real" parser.
+  dynFlags0 <- getDynFlags
 #if __GLASGOW_HASKELL__ < 904
-    flagsFromFile <-
+  flagsFromFile <-
 #else
-    (_, flagsFromFile) <-
+  (_, flagsFromFile) <-
 #endif
-      liftIO $ getOptionsFromFile (initParserOpts dynFlags0) path
-    (dynFlags1, _, _) <- parseDynamicFilePragma dynFlags0 flagsFromFile
+    liftIO $ getOptionsFromFile (initParserOpts dynFlags0) path
+  (dynFlags1, _, _) <- parseDynamicFilePragma dynFlags0 flagsFromFile
 
 #if MIN_VERSION_ghc_exactprint(1,3,0)
-    result <- parseModuleEpAnnsWithCppInternal defaultCppOptions dynFlags1 path
+  result <- parseModuleEpAnnsWithCppInternal defaultCppOptions dynFlags1 path
 #else
-    result <- parseModuleApiAnnsWithCppInternal defaultCppOptions dynFlags1 path
+  result <- parseModuleApiAnnsWithCppInternal defaultCppOptions dynFlags1 path
 #endif
 
-    case result of
-      Left errs -> throwErrors errs
+  case result of
+    Left errs -> throwErrors errs
 #if MIN_VERSION_ghc_exactprint(1,3,0)
-      Right (_cppComments, _dynFlags, parsedSource) -> pure parsedSource
+    Right (_cppComments, _dynFlags, parsedSource) -> pure parsedSource
 #else
-      Right (_apiAnns, _cppComments, _dynFlags, parsedSource) -> pure parsedSource
+    Right (_apiAnns, _cppComments, _dynFlags, parsedSource) -> pure parsedSource
 #endif
+
+-- | Like `extract`, but runs in the `IO` monad given GHC parse arguments.
+extractIO :: [String] -> String -> IO (Module (Located String))
+extractIO parseArgs modName = withGhc parseArgs $ extract modName
 
 -- | Extract all docstrings from given list of files/modules.
 --
@@ -210,9 +220,9 @@ parse args modName = do
 -- Can throw `ExtractError` if an error occurs while extracting the docstrings,
 -- or a `SourceError` if an error occurs while parsing the module. Can throw a
 -- `ModuleNotFoundError` if a module's source file cannot be found.
-extract :: [String] -> String -> IO (Module (Located String))
-extract args modName = do
-  mod <- parse args modName
+extract :: String -> Ghc (Module (Located String))
+extract modName = do
+  mod <- parse modName
   let
     docs0 = extractFromModule modName mod
     docs1 = fmap convertDosLineEndings <$> docs0
@@ -223,7 +233,7 @@ extract args modName = do
       -- UserInterrupt) because all of them indicate severe conditions and
       -- should not occur during normal operation.
       Handler (\e -> throw (e :: AsyncException))
-    , Handler (throwIO . ExtractError)
+    , Handler (liftIO . throwIO . ExtractError)
     ]
 
 -- | Extract all docstrings from given module and attach the modules name.

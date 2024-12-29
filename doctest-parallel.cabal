@@ -17,8 +17,7 @@ author:         Martijn Bastiaan <martijn@hmbastiaan.nl>
 maintainer:     Martijn Bastiaan <martijn@hmbastiaan.nl>
 build-type:     Simple
 tested-with:
-    GHC == 8.10.7
-  , GHC == 9.0.2
+    GHC == 9.0.2
   , GHC == 9.2.8
   , GHC == 9.4.7
   , GHC == 9.6.3
@@ -101,7 +100,7 @@ library
     , directory
     , exceptions
     , filepath
-    , ghc >=8.2 && <9.13
+    , ghc >=9.0 && <9.13
     , ghc-exactprint
     , ghc-paths >=0.1.0.9
     , process

@@ -8,8 +8,9 @@ module Test.DocTest.Internal.Runner where
 import           Prelude hiding (putStr, putStrLn, error)
 
 import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO, ThreadId, myThreadId, MVar, newMVar)
-import           Control.Exception (SomeException, catch)
+import           Control.Exception (SomeException)
 import           Control.Monad hiding (forM_)
+import           Control.Monad.Catch (catch)
 import           Data.Foldable (forM_)
 import           Data.Function (on)
 import           Data.List (sortBy)
@@ -30,15 +31,18 @@ import           Test.DocTest.Internal.Options
   , cfgRandomizeOrder, cfgImplicitModuleImport, parseLocatedModuleOptions)
 import           Test.DocTest.Internal.Location
 import qualified Test.DocTest.Internal.Property as Property
-import           Test.DocTest.Internal.Runner.Example
-import           Test.DocTest.Internal.Logging (LogLevel (..), formatLog, shouldLog, getThreadName)
 import           Test.DocTest.Internal.Extract (isEmptyModule)
+import           Test.DocTest.Internal.GhcUtil (withGhc)
+import           Test.DocTest.Internal.Logging (LogLevel (..), formatLog, shouldLog, getThreadName)
+import           Test.DocTest.Internal.Runner.Example
 
 import           System.IO.CodePage (withCP65001)
 import           Control.Monad.Extra (whenM)
+import GHC (Ghc)
 
 #ifdef mingw32_HOST_OS
-import           Control.Concurrent.MVar (withMVar)
+import           Control.Concurrent.MVar (putMVar, takeMVar)
+import           Control.Monad.Catch (finally)
 #endif
 
 #if __GLASGOW_HASKELL__ < 804
@@ -101,7 +105,8 @@ runModules modConfig nThreads implicitPrelude parseArgs evalArgs modules = do
   (input, output) <-
     makeThreadPool
       (fromMaybe nCores nThreads)
-      (runModule modConfig implicitPrelude ghcLock parseArgs evalArgs)
+      parseArgs
+      (runModule modConfig implicitPrelude ghcLock evalArgs)
 
   -- Send instructions to threads
   liftIO (mapM_ (writeChan input) modules)
@@ -207,31 +212,30 @@ runModule
   -> MVar ()
   -- ^ GHC lock
   -> [String]
-  -- ^ Parse GHC arguments
-  -> [String]
   -- ^ Eval GHCi arguments
   -> Chan (ThreadId, ReportUpdate)
   -> ModuleName
-  -> IO ()
-runModule modConfig0 implicitPrelude ghcLock parseArgs evalArgs output modName = do
-  threadId <- myThreadId
+  -> Ghc ()
+runModule modConfig0 implicitPrelude ghcLock evalArgs output modName = do
+  threadId <- liftIO myThreadId
   let update r = writeChan output (threadId, r)
 
-  mod_@(Module module_ setup examples0 modArgs) <-
+  mod_@(Module module_ setup examples0 modArgs) <- do
 #ifdef mingw32_HOST_OS
     -- XXX: Cannot use multiple GHC APIs at the same time on Windows
-    withMVar ghcLock $ \() ->
+    liftIO $ takeMVar ghcLock
+    getDocTests modName `finally` liftIO (putMVar ghcLock ())
 #else
-    ghcLock `seq`
+    ghcLock `seq` getDocTests modName
 #endif
-      getDocTests parseArgs modName
-  update (UpdateModuleParsed modName (count (Module module_ setup examples0 modArgs)))
+
+  liftIO $ update (UpdateModuleParsed modName (count (Module module_ setup examples0 modArgs)))
   let modConfig2 = parseLocatedModuleOptions modName modConfig0 modArgs
 
   unless (isEmptyModule mod_) $
     case modConfig2 of
       Left (loc, flag) ->
-        update (UpdateOptionError loc flag)
+        liftIO $ update (UpdateOptionError loc flag)
 
       Right modConfig3 -> do
         let
@@ -267,7 +271,7 @@ runModule modConfig0 implicitPrelude ghcLock parseArgs evalArgs output modName =
 
 
         let logger = update . UpdateLog Debug
-        Interpreter.withInterpreter logger evalArgs $ \repl -> withCP65001 $ do
+        liftIO $ Interpreter.withInterpreter logger evalArgs $ \repl -> withCP65001 $ do
           -- Try to import this module, if it fails, something is off
           importResult <-
             case importModule of
@@ -292,7 +296,7 @@ runModule modConfig0 implicitPrelude ghcLock parseArgs evalArgs output modName =
               update (UpdateImportError module_ importResult)
 
   -- Signal main thread a module has been tested
-  update UpdateModuleDone
+  liftIO $ update UpdateModuleDone
 
 data ReportUpdate
   = UpdateSuccess FromSetup
@@ -316,18 +320,19 @@ data ReportUpdate
 
 makeThreadPool ::
   Int ->
-  (Chan (ThreadId, ReportUpdate) -> ModuleName -> IO ()) ->
+  [String] ->
+  (Chan (ThreadId, ReportUpdate) -> ModuleName -> Ghc ()) ->
   IO (Chan ModuleName, Chan (ThreadId, ReportUpdate))
-makeThreadPool nThreads mutator = do
+makeThreadPool nThreads parseArgs mutator = do
   input <- newChan
   output <- newChan
   forM_ [1..nThreads] $ \_ ->
-    forkIO $ forever $ do
-      modName <- readChan input
-      threadId <- myThreadId
+    forkIO $ withGhc parseArgs $ forever $ do
+      modName <- liftIO $ readChan input
+      threadId <- liftIO myThreadId
       catch
         (mutator output modName)
-        (\e -> writeChan output (threadId, UpdateInternalError modName e))
+        (\e -> liftIO $ writeChan output (threadId, UpdateInternalError modName e))
   return (input, output)
 
 reportModuleParsed :: (?verbosity::LogLevel, ?threadId::ThreadId) => ModuleName -> Int -> Report ()

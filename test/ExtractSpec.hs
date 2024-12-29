@@ -21,7 +21,7 @@ import           System.FilePath
 
 shouldGive :: HasCallStack => (String, String) -> Module String -> Assertion
 (d, m) `shouldGive` expected = do
-  r <- fmap unLoc `fmap` extract ["-i" ++ dir] m
+  r <- fmap unLoc `fmap` extractIO ["-i" ++ dir] m
   eraseConfigLocation r `shouldBe` eraseConfigLocation expected
  where
   dir = "test/extract" </> d
@@ -65,7 +65,7 @@ spec = do
       ("setup", "Foo") `shouldGive` (mod_ "Foo"  [" foo", " bar", " baz"]){moduleSetup=Just "\n some setup code"}
 
     it "fails on invalid flags" $ do
-      extract ["--foobar"] "test/Foo.hs" `shouldThrow` (\e -> case e of UsageError "unrecognized option `--foobar'" -> True; _ -> False)
+      extractIO ["--foobar"] "test/Foo.hs" `shouldThrow` (\e -> case e of UsageError "unrecognized option `--foobar'" -> True; _ -> False)
 
   describe "extract (regression tests)" $ do
     it "works with infix operators" $ do
