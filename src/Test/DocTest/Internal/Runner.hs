@@ -8,9 +8,9 @@ module Test.DocTest.Internal.Runner where
 import           Prelude hiding (putStr, putStrLn, error)
 
 import           Control.Concurrent (Chan, writeChan, readChan, newChan, forkIO, ThreadId, myThreadId, MVar, newMVar)
-import           Control.Exception (SomeException)
+import           Control.Exception (SomeException, AsyncException, throw)
 import           Control.Monad hiding (forM_)
-import           Control.Monad.Catch (catch)
+import           Control.Monad.Catch (catches, Handler (Handler))
 import           Data.Foldable (forM_)
 import           Data.Function (on)
 import           Data.List (sortBy)
@@ -323,9 +323,16 @@ makeThreadPool nThreads parseArgs mutator = do
     forkIO $ withGhc parseArgs $ forever $ do
       modName <- liftIO $ readChan input
       threadId <- liftIO myThreadId
-      catch
+      let update e = liftIO $ writeChan output (threadId, UpdateInternalError modName e)
+      catches
         (mutator output modName)
-        (\e -> liftIO $ writeChan output (threadId, UpdateInternalError modName e))
+        -- Re-throw AsyncException, otherwise execution will not terminate on
+        -- SIGINT (ctrl-c).  All AsyncExceptions are re-thrown (not just
+        -- UserInterrupt) because all of them indicate severe conditions and
+        -- should not occur during normal operation.
+        [ Handler (\e -> throw (e :: AsyncException))
+        , Handler (\e -> update (e :: SomeException))
+        ]
   return (input, output)
 
 reportModuleParsed :: (?verbosity::LogLevel, ?threadId::ThreadId) => ModuleName -> Int -> Report ()
