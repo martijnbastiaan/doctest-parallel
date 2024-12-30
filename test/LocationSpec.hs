@@ -1,18 +1,11 @@
-{-# LANGUAGE CPP #-}
-
 module LocationSpec (main, spec) where
 
 import           Test.Hspec
 
 import           Test.DocTest.Internal.Location
 
-#if __GLASGOW_HASKELL__ < 900
-import           SrcLoc
-import           FastString (fsLit)
-#else
 import           GHC.Types.SrcLoc
 import           GHC.Data.FastString (fsLit)
-#endif
 
 main :: IO ()
 main = hspec spec

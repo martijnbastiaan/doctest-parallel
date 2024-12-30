@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiWayIf #-}
 
@@ -144,12 +143,6 @@ getResult echoMode Interpreter{logger = logger, hOut = stdout} = do
           let xs = stripMarker line
           echo xs
           return xs
-#if __GLASGOW_HASKELL__ < 810
-        -- For some (happy) reason newer GHCs don't decide to print this
-        -- message - or at least we don't see it.
-        | "Loaded package environment from " `isPrefixOf` line -> do
-          go
-#endif
         | otherwise -> do
           echo (line ++ "\n")
           result <- go

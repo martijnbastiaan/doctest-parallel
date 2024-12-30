@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -17,11 +16,7 @@ import           Text.Read (readMaybe)
 import qualified Paths_doctest_parallel
 import           Data.Version (showVersion)
 
-#if __GLASGOW_HASKELL__ < 900
-import           Config as GHC
-#else
 import           GHC.Settings.Config as GHC
-#endif
 
 import           Test.DocTest.Internal.Location (Located (Located), Location)
 import           Test.DocTest.Internal.Interpreter (ghc)

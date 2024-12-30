@@ -30,23 +30,14 @@ import           GHC.Generics (Generic)
 import           Data.Generics (Typeable)
 #endif
 
-#if __GLASGOW_HASKELL__ < 900
-import           GHC hiding (Module, Located, moduleName, parsedSource)
-import           DynFlags
-import           MonadUtils (liftIO)
-#else
 import           GHC hiding (Module, Located, moduleName, parsedSource)
 import           GHC.Driver.Session
 import           GHC.Utils.Monad (liftIO)
-#endif
 
 import           System.Directory
 import           System.FilePath
 
-#if __GLASGOW_HASKELL__ < 900
-import           BasicTypes (SourceText(SourceText))
-import           FastString (unpackFS)
-#elif __GLASGOW_HASKELL__ < 902
+#if __GLASGOW_HASKELL__ < 902
 import           GHC.Data.FastString (unpackFS)
 import           GHC.Types.Basic (SourceText(SourceText))
 #elif __GLASGOW_HASKELL__ < 906
@@ -66,10 +57,7 @@ import           Language.Haskell.GHC.ExactPrint.Parsers (parseModuleEpAnnsWithC
 import           Language.Haskell.GHC.ExactPrint.Parsers (parseModuleApiAnnsWithCppInternal, defaultCppOptions)
 #endif
 
-#if __GLASGOW_HASKELL__ < 900
-import           HscTypes (throwErrors)
-import           HeaderInfo (getOptionsFromFile)
-#elif __GLASGOW_HASKELL__ < 902
+#if __GLASGOW_HASKELL__ < 902
 import           GHC.Driver.Types (throwErrors)
 import           GHC.Parser.Header (getOptionsFromFile)
 #elif __GLASGOW_HASKELL__ < 904
@@ -145,15 +133,6 @@ eraseConfigLocation m@Module{moduleConfig} =
   m{moduleConfig=map go moduleConfig}
  where
   go (Located _ a) = noLocation a
-
-#if __GLASGOW_HASKELL__ < 803
-type GhcPs = RdrName
-#endif
-
-#if __GLASGOW_HASKELL__ < 805
-addQuoteInclude :: [String] -> [String] -> [String]
-addQuoteInclude includes new = new ++ includes
-#endif
 
 moduleParts :: String -> [String]
 moduleParts = splitOn '.'
@@ -288,11 +267,7 @@ docStringsFromModule mod =
 
   exports :: [(Maybe String, LHsDocString)]
   exports = [ (Nothing, L (locA loc) doc)
-#if __GLASGOW_HASKELL__ < 710
-            | L loc (IEDoc doc) <- concat (hsmodExports source)
-#elif __GLASGOW_HASKELL__ < 805
-            | L loc (IEDoc doc) <- maybe [] unLoc (hsmodExports source)
-#elif __GLASGOW_HASKELL__ < 904
+#if __GLASGOW_HASKELL__ < 904
             | L loc (IEDoc _ doc) <- maybe [] unLoc (hsmodExports source)
 #else
             | L loc (IEDoc _ (unLoc . fmap hsDocString -> doc)) <- maybe [] unLoc (hsmodExports source)
@@ -323,9 +298,7 @@ extractModuleAnns = everythingBut (++) (([], False) `mkQ` fromLHsDecl)
  where
   fromLHsDecl :: AnnSelector (LHsDecl GhcPs)
   fromLHsDecl (L (locA -> loc) decl) = case decl of
-#if __GLASGOW_HASKELL__ < 805
-    AnnD (HsAnnotation (SourceText _) ModuleAnnProvenance (L _loc expr))
-#elif __GLASGOW_HASKELL__ < 906
+#if __GLASGOW_HASKELL__ < 906
     AnnD _ (HsAnnotation _ (SourceText _) ModuleAnnProvenance (L _loc expr))
 #else
     AnnD _ (HsAnnotation _ ModuleAnnProvenance (L _loc expr))
@@ -340,13 +313,6 @@ extractModuleAnns = everythingBut (++) (([], False) `mkQ` fromLHsDecl)
 extractLit :: SrcSpan -> HsExpr GhcPs -> Maybe (Located String)
 extractLit loc = \case
   -- well this is a holy mess innit
-#if __GLASGOW_HASKELL__ < 805
-  HsPar (L l e) -> extractLit l e
-  ExprWithTySig (L l e) _ -> extractLit l e
-  HsOverLit OverLit{ol_val=HsIsString _ s} -> Just (toLocated (L loc (unpackFS s)))
-  HsLit (HsString _ s) -> Just (toLocated (L loc (unpackFS s)))
-  _ -> Nothing
-#else
 #if __GLASGOW_HASKELL__ < 904
   HsPar _ (L l e) -> extractLit (locA l) e
 #elif __GLASGOW_HASKELL__ < 909
@@ -354,15 +320,10 @@ extractLit loc = \case
 #else
   HsPar _ (L l e) -> extractLit (locA l) e
 #endif
-#if __GLASGOW_HASKELL__ < 807
-  ExprWithTySig _ (L l e) -> extractLit l e
-#else
   ExprWithTySig _ (L l e) _ -> extractLit (locA l) e
-#endif
   HsOverLit _ OverLit{ol_val=HsIsString _ s} -> Just (toLocated (L loc (unpackFS s)))
   HsLit _ (HsString _ s) -> Just (toLocated (L loc (unpackFS s)))
   _ -> Nothing
-#endif
 
 -- | Extract all docstrings from given value.
 extractDocStrings :: Either (HsDecl GhcPs) [LHsDecl GhcPs] -> [(Maybe String, LHsDocString)]
@@ -384,12 +345,7 @@ extractDocStrings =
       -- Top-level documentation has to be treated separately, because it has
       -- no location information attached.  The location information is
       -- attached to HsDecl instead.
-#if __GLASGOW_HASKELL__ < 805
-      DocD x
-#else
-      DocD _ x
-#endif
-           -> select (fromDocDecl (locA loc) x)
+      DocD _ x -> select (fromDocDecl (locA loc) x)
 
       _ -> (extractDocStrings (Left decl), True)
 
@@ -424,12 +380,6 @@ extractDocStrings =
 #else
       DocCommentNamed name doc -> (Just name, hsDocString <$> doc)
       _                        -> (Nothing, L loc $ hsDocString $ unLoc $ docDeclDoc x)
-#endif
-
-#if __GLASGOW_HASKELL__ < 805
--- | Convert a docstring to a plain string.
-unpackHDS :: HsDocString -> String
-unpackHDS (HsDocString s) = unpackFS s
 #endif
 
 #if __GLASGOW_HASKELL__ < 901

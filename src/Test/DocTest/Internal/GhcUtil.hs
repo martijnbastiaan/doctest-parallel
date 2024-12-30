@@ -3,17 +3,9 @@ module Test.DocTest.Internal.GhcUtil (withGhc) where
 
 import           GHC.Paths (libdir)
 import           GHC
-#if __GLASGOW_HASKELL__ < 900
-import           DynFlags (gopt_set)
-#else
 import           GHC.Driver.Session (gopt_set)
-#endif
 
-#if __GLASGOW_HASKELL__ < 900
-import           Panic (throwGhcException)
-#else
 import           GHC.Utils.Panic (throwGhcException)
-#endif
 
 -- | Run a GHC action in Haddock mode
 withGhc :: [String] -> Ghc a -> IO a

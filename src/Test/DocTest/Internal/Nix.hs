@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
 
 module Test.DocTest.Internal.Nix where
@@ -16,22 +15,8 @@ import System.Environment (lookupEnv)
 import System.FilePath ((</>), isDrive, takeDirectory)
 import System.Process (readProcess)
 
-#if __GLASGOW_HASKELL__ >= 900
 import GHC.Data.Maybe (liftMaybeT)
 import System.Info (fullCompilerVersion)
-#else
-import Maybes (liftMaybeT)
-import System.Info (compilerVersion)
-
-fullCompilerVersion :: Version
-fullCompilerVersion =
-  case compilerVersion of
-    Version majorMinor tags ->
-      Version (majorMinor ++ [lvl1]) tags
- where
-  lvl1 :: Int
-  lvl1 = __GLASGOW_HASKELL_PATCHLEVEL1__
-#endif
 
 -- | E.g. @9.0.2@
 compilerVersionStr :: String
