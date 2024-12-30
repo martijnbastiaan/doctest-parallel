@@ -11,6 +11,7 @@ module Test.DocTest.Internal.Parse (
 , ExpectedLine (..)
 , LineChunk (..)
 , getDocTests
+, getDocTestsIO
 
 -- * exported for testing
 , parseInteractions
@@ -24,7 +25,9 @@ import           Data.Maybe
 import           Data.String
 
 import           Test.DocTest.Internal.Extract
+import           Test.DocTest.Internal.GhcUtil (withGhc)
 import           Test.DocTest.Internal.Location
+import GHC (Ghc)
 
 
 data DocTest = Example Expression ExpectedResult | Property Expression
@@ -47,17 +50,13 @@ type ExpectedResult = [ExpectedLine]
 
 type Interaction = (Expression, ExpectedResult)
 
+-- | Extract 'DocTest's from given module
+getDocTestsIO :: [String] -> String -> IO (Module [Located DocTest])
+getDocTestsIO parseArgs mod_ = withGhc parseArgs $ parseModule <$> extract mod_
 
--- |
--- Extract 'DocTest's from all given modules and all modules included by the
--- given modules.
-getDocTests :: [String] -> IO [Module [Located DocTest]]  -- ^ Extracted 'DocTest's
-getDocTests args = parseModules <$> extract args
-
-parseModules :: [Module (Located String)] -> [Module [Located DocTest]]
-parseModules = filter (not . isEmpty) . map parseModule
- where
-  isEmpty (Module _ setup tests _) = null tests && isNothing setup
+-- | Extract 'DocTest's from given module
+getDocTests :: String -> Ghc (Module [Located DocTest])
+getDocTests mod_ = parseModule <$> extract mod_
 
 -- | Convert documentation to `Example`s.
 parseModule :: Module (Located String) -> Module [Located DocTest]

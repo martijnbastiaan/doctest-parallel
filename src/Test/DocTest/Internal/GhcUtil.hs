@@ -15,32 +15,19 @@ import           Panic (throwGhcException)
 import           GHC.Utils.Panic (throwGhcException)
 #endif
 
-#if __GLASGOW_HASKELL__ < 900
-import           MonadUtils (liftIO)
-#else
-import           GHC.Utils.Monad (liftIO)
-#endif
-
-import           System.Exit (exitFailure)
-
--- Catch GHC source errors, print them and exit.
-handleSrcErrors :: Ghc a -> Ghc a
-handleSrcErrors action' = flip handleSourceError action' $ \err -> do
-  printException err
-  liftIO exitFailure
-
 -- | Run a GHC action in Haddock mode
-withGhc :: [String] -> ([String] -> Ghc a) -> IO a
+withGhc :: [String] -> Ghc a -> IO a
 withGhc flags action = do
   flags_ <- handleStaticFlags flags
 
   runGhc (Just libdir) $ do
-    handleDynamicFlags flags_ >>= handleSrcErrors . action
+    handleDynamicFlags flags_
+    action
 
 handleStaticFlags :: [String] -> IO [Located String]
 handleStaticFlags flags = return $ map noLoc $ flags
 
-handleDynamicFlags :: GhcMonad m => [Located String] -> m [String]
+handleDynamicFlags :: GhcMonad m => [Located String] -> m ()
 handleDynamicFlags flags = do
 #if __GLASGOW_HASKELL__ >= 901
   logger <- getLogger
@@ -58,7 +45,7 @@ handleDynamicFlags flags = do
       unknown_opts = [ f | f@('-':_) <- srcs ]
   case unknown_opts of
     opt : _ -> throwGhcException (UsageError ("unrecognized option `"++ opt ++ "'"))
-    _       -> return srcs
+    _       -> return ()
 
 setHaddockMode :: DynFlags -> DynFlags
 setHaddockMode dynflags = (gopt_set dynflags Opt_Haddock) {

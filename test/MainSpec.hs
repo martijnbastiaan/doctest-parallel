@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 
-module MainSpec (main, spec) where
+module MainSpec where
 
 import           Test.Hspec
 import           Test.HUnit (assertEqual, Assertion)

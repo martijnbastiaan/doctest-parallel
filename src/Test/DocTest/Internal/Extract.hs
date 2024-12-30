@@ -8,40 +8,36 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Test.DocTest.Internal.Extract (Module(..), extract, eraseConfigLocation) where
-
+module Test.DocTest.Internal.Extract
+  ( Module(..)
+  , isEmptyModule
+  , extract
+  , extractIO
+  , eraseConfigLocation
+  ) where
 import           Prelude hiding (mod, concat)
-import           Control.Monad
-import           Control.Exception
-import           Data.List (partition, isPrefixOf)
-import           Data.List.Extra (trim)
-import           Data.Maybe
-
 import           Control.DeepSeq (NFData, deepseq)
+import           Control.Exception (AsyncException, throw, throwIO, fromException)
+import           Control.Monad
+import           Control.Monad.Catch (catches, SomeException, Exception, Handler (Handler))
 import           Data.Generics (Data, extQ, mkQ, everythingBut)
+import           Data.List (partition, isPrefixOf)
+import           Data.List.Extra (trim, splitOn)
+import           Data.Maybe
+import           GHC.Generics (Generic)
+
 #if __GLASGOW_HASKELL__ < 912
 import           Data.Generics (Typeable)
 #endif
 
-import qualified GHC
-
 #if __GLASGOW_HASKELL__ < 900
-import           GHC hiding (Module, Located, moduleName)
+import           GHC hiding (Module, Located, moduleName, parsedSource)
 import           DynFlags
 import           MonadUtils (liftIO)
 #else
-import           GHC hiding (Module, Located, moduleName)
+import           GHC hiding (Module, Located, moduleName, parsedSource)
 import           GHC.Driver.Session
 import           GHC.Utils.Monad (liftIO)
-#endif
-
-#if __GLASGOW_HASKELL__ < 900
-import           Digraph (flattenSCCs)
-import           Exception (ExceptionMonad)
-#else
-import           GHC.Data.Graph.Directed (flattenSCCs)
-import           GHC.Utils.Exception (ExceptionMonad)
-import           Control.Monad.Catch (generalBracket)
 #endif
 
 import           System.Directory
@@ -60,25 +56,35 @@ import           GHC.Data.FastString (unpackFS)
 import           GHC.Data.FastString (unpackFS)
 #endif
 
-import           System.Posix.Internals (c_getpid)
-
 import           Test.DocTest.Internal.GhcUtil (withGhc)
 import           Test.DocTest.Internal.Location hiding (unLoc)
 import           Test.DocTest.Internal.Util (convertDosLineEndings)
 
-#if __GLASGOW_HASKELL__ >= 806
-#if __GLASGOW_HASKELL__ < 900
-import           DynamicLoading (initializePlugins)
+#if MIN_VERSION_ghc_exactprint(1,3,0)
+import           Language.Haskell.GHC.ExactPrint.Parsers (parseModuleEpAnnsWithCppInternal, defaultCppOptions)
 #else
-import           GHC.Runtime.Loader (initializePlugins)
-#endif
-#endif
-
-#if __GLASGOW_HASKELL__ >= 901
-import           GHC.Unit.Module.Graph
+import           Language.Haskell.GHC.ExactPrint.Parsers (parseModuleApiAnnsWithCppInternal, defaultCppOptions)
 #endif
 
-import           GHC.Generics (Generic)
+#if __GLASGOW_HASKELL__ < 900
+import           HscTypes (throwErrors)
+import           HeaderInfo (getOptionsFromFile)
+#elif __GLASGOW_HASKELL__ < 902
+import           GHC.Driver.Types (throwErrors)
+import           GHC.Parser.Header (getOptionsFromFile)
+#elif __GLASGOW_HASKELL__ < 904
+import           GHC.Types.SourceError (throwErrors)
+import           GHC.Parser.Header (getOptionsFromFile)
+#else
+import           GHC.Types.SourceError (throwErrors)
+import           GHC.Parser.Header (getOptionsFromFile)
+import           GHC.Driver.Config.Parser (initParserOpts)
+#endif
+
+#if __GLASGOW_HASKELL__ < 904
+initParserOpts :: DynFlags -> DynFlags
+initParserOpts = id
+#endif
 
 
 -- | A wrapper around `SomeException`, to allow for a custom `Show` instance.
@@ -105,6 +111,24 @@ instance Show ExtractError where
 
 instance Exception ExtractError
 
+data ModuleNotFoundError = ModuleNotFoundError String [FilePath]
+  deriving (
+#if __GLASGOW_HASKELL__ < 912
+    Typeable,
+#endif
+    Exception
+  )
+
+instance Show ModuleNotFoundError where
+  show (ModuleNotFoundError modName incdirs) =
+    unlines [
+        "Module not found: " ++ modName
+      , ""
+      , "Tried the following include directories:"
+      , ""
+      , unlines incdirs
+      ]
+
 -- | Documentation for a module grouped together with the modules name.
 data Module a = Module {
   moduleName    :: String
@@ -112,6 +136,9 @@ data Module a = Module {
 , moduleContent :: [a]
 , moduleConfig  :: [Located String]
 } deriving (Eq, Functor, Show, Generic, NFData)
+
+isEmptyModule :: Module a -> Bool
+isEmptyModule (Module _ setup tests _) = null tests && isNothing setup
 
 eraseConfigLocation :: Module a -> Module a
 eraseConfigLocation m@Module{moduleConfig} =
@@ -128,102 +155,91 @@ addQuoteInclude :: [String] -> [String] -> [String]
 addQuoteInclude includes new = new ++ includes
 #endif
 
--- | Parse a list of modules.
-parse :: [String] -> IO [ParsedModule]
-parse args = withGhc args $ \modules -> withTempOutputDir $ do
-  setTargets =<< forM modules (\ m -> guessTarget m
-#if __GLASGOW_HASKELL__ >= 903
-                Nothing
-#endif
-                Nothing)
-  mods <- depanal [] False
+moduleParts :: String -> [String]
+moduleParts = splitOn '.'
 
-  let sortedMods = flattenSCCs
-#if __GLASGOW_HASKELL__ >= 901
-                     $ filterToposortToModules
-#endif
-                     $ topSortModuleGraph False mods Nothing
-  reverse <$> mapM (loadModPlugins >=> parseModule) sortedMods
+findModulePath :: [FilePath] -> String -> IO FilePath
+findModulePath importPaths modName = do
+  let
+    modPath = foldl1 (</>) (moduleParts modName) <.> "hs"
 
-  where
-    -- copied from Haddock/GhcUtils.hs
-    modifySessionDynFlags :: (DynFlags -> DynFlags) -> Ghc ()
-    modifySessionDynFlags f = do
-      dflags <- getSessionDynFlags
-      let dflags' = case lookup "GHC Dynamic" (compilerInfo dflags) of
-            Just "YES" -> gopt_set dflags Opt_BuildDynamicToo
-            _          -> dflags
-      _ <- setSessionDynFlags (f dflags')
-      return ()
+  found <- fmap catMaybes $ forM importPaths $ \importPath -> do
+    let fullPath = importPath </> modPath
+    exists <- doesFileExist fullPath
+    return $ if exists then Just fullPath else Nothing
 
-    withTempOutputDir :: Ghc a -> Ghc a
-    withTempOutputDir action = do
-      tmp <- liftIO getTemporaryDirectory
-      x   <- liftIO c_getpid
-      let dir = tmp </> ".doctest-" ++ show x
-      modifySessionDynFlags (setOutputDir dir)
-      gbracket_
-        (liftIO $ createDirectory dir)
-        (liftIO $ removeDirectoryRecursive dir)
-        action
+  case found of
+    [] -> throwIO (ModuleNotFoundError modName importPaths)
+    (p:_) -> pure p
 
-    -- | A variant of 'gbracket' where the return value from the first computation
-    -- is not required.
-    gbracket_ :: ExceptionMonad m => m a -> m b -> m c -> m c
-#if __GLASGOW_HASKELL__ < 900
-    gbracket_ before_ after thing = gbracket before_ (const after) (const thing)
+-- | Parse a list of modules. Can throw an `ModuleNotFoundError` if a module's
+-- source file cannot be found. Can throw a `SourceError` if an error occurs
+-- while parsing.
+parse :: String -> Ghc ParsedSource
+parse modName = do
+  -- Find all specified modules on disk
+  importPaths0 <- importPaths <$> getDynFlags
+  path <- liftIO $ findModulePath importPaths0 modName
+
+  -- LANGUAGE pragmas can influence how a file is parsed. For example, CPP
+  -- means we need to preprocess the file before parsing it. We use GHC's
+  -- `getOptionsFromFile` to parse these pragmas and then feed them as options
+  -- to the "real" parser.
+  dynFlags0 <- getDynFlags
+#if __GLASGOW_HASKELL__ < 904
+  flagsFromFile <-
 #else
-    gbracket_ before_ after thing = fst <$> generalBracket before_ (\ _ _ -> after) (const thing)
+  (_, flagsFromFile) <-
 #endif
+    liftIO $ getOptionsFromFile (initParserOpts dynFlags0) path
+  (dynFlags1, _, _) <- parseDynamicFilePragma dynFlags0 flagsFromFile
 
-    setOutputDir f d = d {
-        objectDir  = Just f
-      , hiDir      = Just f
-      , stubDir    = Just f
-      , includePaths = addQuoteInclude (includePaths d) [f]
-      }
-
-
-#if __GLASGOW_HASKELL__ >= 806
-    -- Since GHC 8.6, plugins are initialized on a per module basis
-    loadModPlugins modsum = do
-      _ <- setSessionDynFlags (GHC.ms_hspp_opts modsum)
-      hsc_env <- getSession
-
-# if __GLASGOW_HASKELL__ >= 901
-      hsc_env' <- liftIO (initializePlugins hsc_env)
-      setSession hsc_env'
-      return $ modsum
-# else
-      dynflags' <- liftIO (initializePlugins hsc_env (GHC.ms_hspp_opts modsum))
-      return $ modsum { ms_hspp_opts = dynflags' }
-# endif
+#if MIN_VERSION_ghc_exactprint(1,3,0)
+  result <- parseModuleEpAnnsWithCppInternal defaultCppOptions dynFlags1 path
 #else
-    loadModPlugins = return
+  result <- parseModuleApiAnnsWithCppInternal defaultCppOptions dynFlags1 path
 #endif
+
+  case result of
+    Left errs -> throwErrors errs
+#if MIN_VERSION_ghc_exactprint(1,3,0)
+    Right (_cppComments, _dynFlags, parsedSource) -> pure parsedSource
+#else
+    Right (_apiAnns, _cppComments, _dynFlags, parsedSource) -> pure parsedSource
+#endif
+
+-- | Like `extract`, but runs in the `IO` monad given GHC parse arguments.
+extractIO :: [String] -> String -> IO (Module (Located String))
+extractIO parseArgs modName = withGhc parseArgs $ extract modName
 
 -- | Extract all docstrings from given list of files/modules.
 --
 -- This includes the docstrings of all local modules that are imported from
 -- those modules (possibly indirect).
-extract :: [String] -> IO [Module (Located String)]
-extract args = do
-  mods <- parse args
-  let docs = map (fmap (fmap convertDosLineEndings) . extractFromModule) mods
+--
+-- Can throw `ExtractError` if an error occurs while extracting the docstrings,
+-- or a `SourceError` if an error occurs while parsing the module. Can throw a
+-- `ModuleNotFoundError` if a module's source file cannot be found.
+extract :: String -> Ghc (Module (Located String))
+extract modName = do
+  mod <- parse modName
+  let
+    docs0 = extractFromModule modName mod
+    docs1 = fmap convertDosLineEndings <$> docs0
 
-  (docs `deepseq` return docs) `catches` [
+  (docs1 `deepseq` return docs1) `catches` [
       -- Re-throw AsyncException, otherwise execution will not terminate on
       -- SIGINT (ctrl-c).  All AsyncExceptions are re-thrown (not just
       -- UserInterrupt) because all of them indicate severe conditions and
       -- should not occur during normal operation.
       Handler (\e -> throw (e :: AsyncException))
-    , Handler (throwIO . ExtractError)
+    , Handler (liftIO . throwIO . ExtractError)
     ]
 
 -- | Extract all docstrings from given module and attach the modules name.
-extractFromModule :: ParsedModule -> Module (Located String)
-extractFromModule m = Module
-  { moduleName = name
+extractFromModule :: String -> ParsedSource -> Module (Located String)
+extractFromModule modName m = Module
+  { moduleName = modName
   , moduleSetup = listToMaybe (map snd setup)
   , moduleContent = map snd docs
   , moduleConfig = moduleAnnsFromModule m
@@ -231,10 +247,9 @@ extractFromModule m = Module
  where
   isSetup = (== Just "setup") . fst
   (setup, docs) = partition isSetup (docStringsFromModule m)
-  name = (moduleNameString . GHC.moduleName . ms_mod . pm_mod_summary) m
 
 -- | Extract all module annotations from given module.
-moduleAnnsFromModule :: ParsedModule -> [Located String]
+moduleAnnsFromModule :: ParsedSource -> [Located String]
 moduleAnnsFromModule mod =
   [fmap stripOptionString ann | ann <- anns, isOption ann]
  where
@@ -242,10 +257,10 @@ moduleAnnsFromModule mod =
   isOption (Located _ s) = optionPrefix `isPrefixOf` s
   stripOptionString s = trim (drop (length optionPrefix) s)
   anns = extractModuleAnns source
-  source = (unLoc . pm_parsed_source) mod
+  source = unLoc mod
 
 -- | Extract all docstrings from given module.
-docStringsFromModule :: ParsedModule -> [(Maybe String, Located String)]
+docStringsFromModule :: ParsedSource -> [(Maybe String, Located String)]
 docStringsFromModule mod =
 #if __GLASGOW_HASKELL__ < 904
   map (fmap (toLocated . fmap unpackHDS)) docs
@@ -253,7 +268,7 @@ docStringsFromModule mod =
   map (fmap (toLocated . fmap renderHsDocString)) docs
 #endif
  where
-  source = (unLoc . pm_parsed_source) mod
+  source = unLoc mod
 
   -- we use dlist-style concatenation here
   docs :: [(Maybe String, LHsDocString)]

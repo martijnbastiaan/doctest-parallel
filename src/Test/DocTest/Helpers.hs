@@ -31,7 +31,7 @@ import Distribution.PackageDescription
   ( GenericPackageDescription (condLibrary)
   , exposedModules, libBuildInfo, hsSourceDirs, defaultExtensions, package
   , packageDescription, condSubLibraries, includeDirs, autogenModules, ConfVar(..)
-  , defaultLanguage )
+  , defaultLanguage, BuildInfo (otherModules) )
 
 import Distribution.Compiler (CompilerFlavor(GHC))
 import Distribution.Pretty (prettyShow)
@@ -256,11 +256,12 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
       $ map compatPrettyShow
 #endif
       cSourceDirs
-    , libModules = exposedModules lib `rmList` autogenModules buildInfo
+    , libModules = modules `rmList` autogenModules buildInfo
     , libDefaultExtensions = defaultExtensions buildInfo
     , libDefaultLanguages = maybeToList (defaultLanguage buildInfo)
     }
    where
+    modules = otherModules buildInfo <> exposedModules lib
     buildInfo = libBuildInfo lib
     sourceDirs = hsSourceDirs buildInfo
     cSourceDirs = includeDirs buildInfo
