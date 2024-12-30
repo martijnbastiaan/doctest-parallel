@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -31,11 +30,7 @@ import           System.Random (randomIO)
 
 import qualified Control.Exception as E
 
-#if __GLASGOW_HASKELL__ < 900
-import Panic
-#else
 import GHC.Utils.Panic
-#endif
 
 import Test.DocTest.Internal.Options
 import Test.DocTest.Internal.Runner

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternGuards #-}
 
 module Test.DocTest.Internal.Property where

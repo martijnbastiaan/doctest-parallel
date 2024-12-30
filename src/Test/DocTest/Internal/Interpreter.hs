@@ -84,10 +84,8 @@ withInterpreter logger flags action = do
   let
     args = flags ++ [
         "--interactive"
-#if __GLASGOW_HASKELL__ >= 802
       , "-fdiagnostics-color=never"
       , "-fno-diagnostics-show-caret"
-#endif
       ]
   bracket (new logger defaultConfig{configGhci = ghc} args) close action
 

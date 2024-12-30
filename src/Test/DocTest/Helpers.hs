@@ -16,10 +16,6 @@ import System.FilePath ((</>), isDrive, takeDirectory)
 import System.FilePath.Glob (glob)
 import System.Info (compilerVersion)
 
-#if __GLASGOW_HASKELL__ < 804
-import Data.Monoid ((<>))
-#endif
-
 import qualified Data.Set as Set
 
 -- Cabal

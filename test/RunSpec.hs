@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module RunSpec (main, spec) where
 
 import           Prelude ()

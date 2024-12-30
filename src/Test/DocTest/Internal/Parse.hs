@@ -1,6 +1,5 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 
 module Test.DocTest.Internal.Parse (
   Module (..)
