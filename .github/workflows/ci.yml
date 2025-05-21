@@ -178,7 +178,7 @@ jobs:
           sudo apt-get install curl -y
           sudo apt-get install \
             build-essential curl libffi-dev libffi8ubuntu1 libgmp-dev \
-            libgmp10 libncurses-dev libncurses5 libtinfo5 -y
+            libgmp10 libncurses-dev libncurses6 libtinfo6 -y
 
           sudo curl "https://downloads.haskell.org/~ghcup/${{ matrix.tools.ghcup }}/x86_64-linux-ghcup-${{ matrix.tools.ghcup }}" --output /usr/bin/ghcup
           sudo chmod +x /usr/bin/ghcup
