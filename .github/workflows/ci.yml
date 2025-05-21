@@ -16,15 +16,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
-        resolver: ["lts-20.17"]
+        os: ["macOS-latest", "windows-latest", "ubuntu-24.04"]
+        resolver: ["lts-22.44"]
       fail-fast: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Haskell
-        uses: haskell-actions/setup@v2.7.0
+        uses: haskell-actions/setup@v2.8.0
         id: setup-haskell
         with:
           enable-stack: true
@@ -61,26 +61,24 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macOS-latest", "windows-latest", "ubuntu-22.04"]
+        os: ["macOS-latest", "windows-latest", "ubuntu-24.04"]
         ghc:
-          - "9.12.1"
-          - "9.10.1"
-          - "9.8.1"
-          - "9.6.3"
-          - "9.4.7"
+          - "9.12.2"
+          - "9.10.2"
+          - "9.8.4"
+          - "9.6.7"
+          - "9.4.8"
           - "9.2.8"
           - "9.0.2"
         exclude:
           # Newer macOSs don't have the right LLVM to compile our dependencies
           - os: macOS-latest
             ghc: "9.0.2"
-          - os: macOS-latest
-            ghc: "8.10.7"
 
         # Uncomment if testing with an unreleased GHC. Make sure to edit the
         #  "Setup Haskell (head)" step too.
         # include:
-        #   - os: ubuntu-22.04
+        #   - os: ubuntu-24.04
         #     ghc: head
       fail-fast: false
     steps:
@@ -89,7 +87,7 @@ jobs:
 
       - name: Setup Haskell
         if: matrix.ghc != 'head'
-        uses: haskell-actions/setup@v2.7.0
+        uses: haskell-actions/setup@v2.8.0
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
@@ -147,10 +145,10 @@ jobs:
           cabal v2-run doctests
 
   nix:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
-    - uses: cachix/install-nix-action@v26
+    - uses: cachix/install-nix-action@v31
       with:
         nix_path: nixpkgs=channel:nixos-unstable
     - run: |
@@ -165,11 +163,11 @@ jobs:
 
   hls:
     name: HLS
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         tools:
-          - {ghc: "9.6.2", cabal: "3.10.1.0", hls: "2.0.0.1", ghcup: "0.1.19.4"}
+          - {ghc: "9.10.2", cabal: "3.12.1.0", hls: "2.9.0.1", ghcup: "0.1.50.2"}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -180,7 +178,7 @@ jobs:
           sudo apt-get install curl -y
           sudo apt-get install \
             build-essential curl libffi-dev libffi8ubuntu1 libgmp-dev \
-            libgmp10 libncurses-dev libncurses5 libtinfo5 -y
+            libgmp10 libncurses-dev libncurses6 libtinfo6 -y
 
           sudo curl "https://downloads.haskell.org/~ghcup/${{ matrix.tools.ghcup }}/x86_64-linux-ghcup-${{ matrix.tools.ghcup }}" --output /usr/bin/ghcup
           sudo chmod +x /usr/bin/ghcup
@@ -228,7 +226,7 @@ jobs:
         nix,
         hls,
       ]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
