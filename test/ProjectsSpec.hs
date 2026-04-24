@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 
 module ProjectsSpec (main, spec) where
@@ -24,6 +25,11 @@ spec = do
         | otherwise -> describe
 
   cDescribe "T85-default-language" $ do
+#ifdef USE_RUNHASKELL
+    it "runhaskell Setup test doctests" $ do
+      _ <- readCreateProcess (proc "runhaskell" ["Setup", "test", "doctests"]) ""
+#else
     it "cabal run doctests" $ do
       _ <- readCreateProcess (proc "cabal" ["run", "-v0", "--", "doctests", "--quiet"]) ""
+#endif
       pure ()
