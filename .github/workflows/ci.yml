@@ -257,6 +257,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+          sudo apt-get -y install python3-networkx
           sudo apt-get -y install python3-yaml
 
       - name: Check that the 'all' job depends on all other jobs
