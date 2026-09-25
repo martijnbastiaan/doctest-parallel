@@ -3,6 +3,7 @@
 module Test.DocTest.Internal.Property where
 
 import           Data.List
+import           Data.List.Extra (dropEnd)
 import           Data.Maybe
 import           Data.Foldable
 
@@ -60,6 +61,6 @@ parseNotInScope = nub . mapMaybe extractVariable . lines
       | otherwise = Nothing
 
     -- | Remove quotes from given name, if any.
-    unquote ('`':xs)     = init xs
-    unquote ('\8216':xs) = init xs
+    unquote ('`':xs)     = dropEnd 1 xs
+    unquote ('\8216':xs) = dropEnd 1 xs
     unquote xs           = xs

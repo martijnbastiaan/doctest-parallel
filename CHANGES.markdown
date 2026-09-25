@@ -1,3 +1,6 @@
+# 0.4.2 -- unreleased
+ * Add support for GHC 10.0 (thanks @rowanG077)
+
 # 0.4.1
  * Add support for GHC 9.14 (thanks @alexfmpe)
 

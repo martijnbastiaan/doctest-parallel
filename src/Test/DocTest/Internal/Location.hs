@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 module Test.DocTest.Internal.Location where
 
@@ -53,4 +54,7 @@ enumerate loc = case loc of
 toLocation :: SrcSpan -> Location
 toLocation loc = case loc of
   UnhelpfulSpan str -> UnhelpfulLocation (unpackFS $ unhelpfulSpanFS str)
+#if __GLASGOW_HASKELL__ >= 1000
+  GeneratedSrcSpan _ -> UnhelpfulLocation (unpackFS generatedSrcSpanDetailsFS)
+#endif
   RealSrcSpan sp _  -> Location (unpackFS . srcSpanFile $ sp) (srcSpanStartLine sp)

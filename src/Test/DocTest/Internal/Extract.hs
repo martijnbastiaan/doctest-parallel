@@ -73,6 +73,10 @@ import           GHC.Driver.Config.Parser (initParserOpts, supportedLanguagePrag
 #endif
 #endif
 
+#if __GLASGOW_HASKELL__ >= 1000
+import           GHC.Types.SourceError (initSourceErrorContext)
+#endif
+
 #if __GLASGOW_HASKELL__ < 904
 initParserOpts :: DynFlags -> DynFlags
 initParserOpts = id
@@ -179,7 +183,11 @@ parse modName = do
     liftIO $ getOptionsFromFile (initParserOpts dynFlags0) path
   (dynFlags1, _, _) <- parseDynamicFilePragma dynFlags0 flagsFromFile
 #else
-    liftIO $ getOptionsFromFile (initParserOpts dynFlags0) (supportedLanguagePragmas dynFlags0) path
+    liftIO $ getOptionsFromFile (initParserOpts dynFlags0)
+#if __GLASGOW_HASKELL__ >= 1000
+      (initSourceErrorContext dynFlags0)
+#endif
+      (supportedLanguagePragmas dynFlags0) path
   logger <- getLogger
   (dynFlags1, _, _) <- parseDynamicFilePragma logger dynFlags0 flagsFromFile
 #endif
@@ -191,7 +199,11 @@ parse modName = do
 #endif
 
   case result of
-    Left errs -> throwErrors errs
+    Left errs -> throwErrors
+#if __GLASGOW_HASKELL__ >= 1000
+      (initSourceErrorContext dynFlags1)
+#endif
+      errs
 #if MIN_VERSION_ghc_exactprint(1,3,0)
     Right (_cppComments, _dynFlags, parsedSource) -> pure parsedSource
 #else

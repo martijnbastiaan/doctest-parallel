@@ -11,4 +11,9 @@ pkgs.stdenv.mkDerivation {
     haskellPackages.cabal-install
   ];
   LC_ALL = "C.UTF-8";
+
+  # All dependencies come from Nix, so give cabal a config without package
+  # repositories. Otherwise it tries to bootstrap Hackage, which fails in a
+  # pure shell.
+  CABAL_CONFIG = builtins.toFile "cabal-config" "";
 }

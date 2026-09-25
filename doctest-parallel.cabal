@@ -25,6 +25,7 @@ tested-with:
   , GHC == 9.10.2
   , GHC == 9.12.2
   , GHC == 9.14.1
+  , GHC == 10.0.1
 
 extra-source-files:
     example/example.cabal
@@ -96,7 +97,7 @@ library
       Data.List.Extra
       Paths_doctest_parallel
   build-depends:
-      Cabal >= 2.4 && < 3.17
+      Cabal >= 2.4 && < 3.19
     , Glob
     , base >=4.10 && <5
     , base-compat >=0.7.0
@@ -106,7 +107,7 @@ library
     , directory
     , exceptions
     , filepath
-    , ghc >=9.0 && <9.15
+    , ghc >=9.0 && <10.2
     , ghc-exactprint
     , ghc-paths >=0.1.0.9
     , process

@@ -5,6 +5,7 @@ module Test.DocTest.Internal.Runner.Example (
 
 import           Data.Char
 import           Data.List
+import           Data.List.Extra (dropEnd)
 
 import           Test.DocTest.Internal.Util
 import           Test.DocTest.Internal.Parse
@@ -27,7 +28,7 @@ mkResult expected_ actual_ =
     -- use show to escape special characters in output lines if any output line
     -- contains any unsafe character
     escapeOutput
-      | any (not . isSafe) $ concat (expectedAsString ++ actual_) = init . drop 1 . show . stripEnd
+      | any (not . isSafe) $ concat (expectedAsString ++ actual_) = dropEnd 1 . drop 1 . show . stripEnd
       | otherwise = id
 
     actual :: [String]

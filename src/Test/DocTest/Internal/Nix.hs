@@ -7,6 +7,7 @@ import Control.Monad.Extra (ifM)
 import Control.Monad.Trans.Maybe
 import Data.Bool (bool)
 import Data.List (intercalate, isSuffixOf)
+import Data.List.Extra (dropEnd)
 import Data.Maybe (isJust)
 import Data.Version
 import GHC.Base (mzero)
@@ -95,7 +96,7 @@ getLocalNixPackageDbArgs = do
 
 -- | Get global package db; used in a NIX_SHELL context
 getGlobalPackageDb :: IO String
-getGlobalPackageDb = init <$> readProcess "ghc" ["--print-global-package-db"] ""
+getGlobalPackageDb = dropEnd 1 <$> readProcess "ghc" ["--print-global-package-db"] ""
 
 -- | Get flags to be used when running in a Nix context (either in a build, or a
 -- shell).

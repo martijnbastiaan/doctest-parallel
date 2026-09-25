@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module LocationSpec (main, spec) where
 
 import           Test.Hspec
@@ -33,6 +34,11 @@ spec = do
     it "works for a SrcLoc with bad locations" $ do
       toLocation (mkSrcSpan noSrcLoc noSrcLoc)
         `shouldBe` UnhelpfulLocation "<no location info>"
+
+#if __GLASGOW_HASKELL__ >= 1000
+    it "works for a generated SrcSpan" $ do
+      toLocation generatedSrcSpan `shouldBe` UnhelpfulLocation "<generated>"
+#endif
 
   describe "enumerate" $ do
     it "replicates UnhelpfulLocation" $ do

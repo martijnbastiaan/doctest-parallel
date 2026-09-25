@@ -1,0 +1,23 @@
+-- Overlay for building against GHC pre-releases. CI uses it by copying it to
+-- cabal.project.local and example/cabal.project.local. To use it locally, do
+-- the same.
+--
+-- Remove workarounds from this file as dependencies catch up, and remove the
+-- file itself once there is no pre-release GHC being tested.
+
+-- https://github.com/alanz/ghc-exactprint/pull/154
+source-repository-package
+  type: git
+  location: https://github.com/rowanG077/ghc-exactprint.git
+  tag: 6bf758597ee25cd27953528e400747e653013297
+
+-- https://github.com/haskell-unordered-containers/hashable/pull/333
+source-repository-package
+  type: git
+  location: https://github.com/haskell-unordered-containers/hashable.git
+  tag: c7202c5a061a46753f2cd0b6bd82a40ee22ee401
+
+-- Bounds lag behind every new GHC release
+allow-newer:
+  *:base,
+  *:template-haskell,

@@ -37,6 +37,9 @@ import Distribution.Types.CondTree
 import Distribution.Types.Version (Version, mkVersion')
 import Distribution.Types.VersionRange (withinRange)
 import Distribution.Verbosity (silent)
+#if MIN_VERSION_Cabal(3,18,0)
+import Distribution.Verbosity (mkVerbosity, defaultVerbosityHandles)
+#endif
 
 #if MIN_VERSION_Cabal(3,8,0)
 import Distribution.Simple.PackageDescription (readGenericPackageDescription)
@@ -171,11 +174,21 @@ compatPrettyShow = id
 -- XXX: Branches guarded by Cabal flags are ignored. I'm not sure where we should
 --      get this info from.
 --
+#if MIN_VERSION_Cabal(3,18,0)
+solveCondTree :: CondTree ConfVar a -> [a]
+solveCondTree CondNode{condTreeData, condTreeComponents} =
+  condTreeData : concatMap goBranch condTreeComponents
+#else
 solveCondTree :: CondTree ConfVar c a -> [(c, a)]
 solveCondTree CondNode{condTreeData, condTreeConstraints, condTreeComponents} =
   (condTreeConstraints, condTreeData) : concatMap goBranch condTreeComponents
+#endif
  where
+#if MIN_VERSION_Cabal(3,18,0)
+  goBranch :: CondBranch ConfVar a -> [a]
+#else
   goBranch :: CondBranch ConfVar c a -> [(c, a)]
+#endif
   goBranch (CondBranch condBranchCondition condBranchIfTrue condBranchIfFalse) =
     if   goCondition condBranchCondition
     then solveCondTree condBranchIfTrue
@@ -213,7 +226,11 @@ extractSpecificCabalLibrary :: Maybe String -> FilePath -> IO Library
 extractSpecificCabalLibrary maybeLibName pkgPath = do
   pkg <-
     readGenericPackageDescription
+#if MIN_VERSION_Cabal(3,18,0)
+      (mkVerbosity defaultVerbosityHandles silent)
+#else
       silent
+#endif
 #if MIN_VERSION_Cabal(3,14,0)
       Nothing
       (makeSymbolicPath pkgPath)
@@ -242,7 +259,11 @@ extractSpecificCabalLibrary maybeLibName pkgPath = do
 
   go condNode = mergeLibraries libs1
    where
+#if MIN_VERSION_Cabal(3,18,0)
+    libs0 = solveCondTree condNode
+#else
     libs0 = map snd (solveCondTree condNode)
+#endif
     libs1 = map goLib libs0
 
   goLib lib = Library
